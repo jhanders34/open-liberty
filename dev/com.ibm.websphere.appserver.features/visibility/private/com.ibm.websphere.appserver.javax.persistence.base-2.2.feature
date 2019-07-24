@@ -3,7 +3,8 @@ symbolicName=com.ibm.websphere.appserver.javax.persistence.base-2.2
 singleton=true
 IBM-Process-Types: server, \
  client
--bundles=com.ibm.ws.javaee.persistence.2.2; location:=lib/
+-bundles=com.ibm.ws.javaee.persistence.2.2; location:=lib/, \
+  com.ibm.ws.javaee.persistence.loader; location:=lib/
 kind=ga
 edition=core
 WLP-Activation-Type: parallel

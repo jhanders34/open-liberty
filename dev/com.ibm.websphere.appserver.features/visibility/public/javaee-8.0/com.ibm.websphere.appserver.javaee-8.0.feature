@@ -13,7 +13,6 @@ Subsystem-Name: Java EE Full Platform 8.0
   com.ibm.websphere.appserver.ejb-3.2,\
   com.ibm.websphere.appserver.jacc-1.5,\
   com.ibm.websphere.appserver.javaMail-1.6,\
-  com.ibm.websphere.appserver.javax.persistence.base-2.2,\
   com.ibm.websphere.appserver.jaxws-2.2,\
   com.ibm.websphere.appserver.jca-1.7,\
   com.ibm.websphere.appserver.jdbc-4.2; ibm.tolerates:="4.3",\
