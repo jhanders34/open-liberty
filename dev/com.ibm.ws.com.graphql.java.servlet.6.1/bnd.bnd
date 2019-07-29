@@ -17,6 +17,11 @@ Bundle-SymbolicName: com.ibm.ws.com.graphql.java.servlet.6.1
 Bundle-Description: Provides GraphQL Java Servlet as a bundle
 
 -includeresource: \
-  @${repo;com.graphql-java:graphql-java-servlet;6.1.3}  
+  @${repo;com.graphql-java:graphql-java-servlet;6.1.3}
+
+Import-Package: \
+  !javax.websocket.*, \
+  *
+
 Export-Package: \
   graphql.servlet.*;version=6.1.3

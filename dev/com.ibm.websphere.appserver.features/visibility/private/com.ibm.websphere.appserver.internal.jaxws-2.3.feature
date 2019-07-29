@@ -18,6 +18,7 @@ Subsystem-Name: Internal Java Web Services 2.3
  com.ibm.ws.com.sun.xml.messaging.saaj; require-java:="9", \
  com.ibm.ws.javaee.ddmodel.wsbnd, \
  com.ibm.ws.cxf.client, \
+ com.ibm.ws.org.apache.neethi.3.0.2, \
  com.ibm.ws.org.apache.cxf.cxf.rt.bindings.soap.3.2, \
  com.ibm.ws.org.apache.cxf.cxf.rt.bindings.xml.3.2, \
  com.ibm.ws.org.apache.cxf.cxf.rt.databinding.jaxb.3.2, \

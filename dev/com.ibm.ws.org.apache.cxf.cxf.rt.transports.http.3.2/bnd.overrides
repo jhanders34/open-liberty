@@ -29,6 +29,7 @@ Import-Package: \
   !org.apache.cxf.wsdl,\
   !org.osgi.service.blueprint.*,\
   com.ibm.ws.cxf.client.*,\
+  org.apache.neethi; resolution:=optional,\
   *
 
 Service-Component: \

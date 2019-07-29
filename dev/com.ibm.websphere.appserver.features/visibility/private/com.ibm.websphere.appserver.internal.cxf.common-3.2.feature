@@ -6,7 +6,6 @@ IBM-App-ForceRestart: uninstall, \
  install
 Subsystem-Name: Internal Apache CXF 3.2 Common Feature for JAX-RS and JAX-WS
 -bundles=com.ibm.ws.org.apache.xml.resolver.1.2, \
- com.ibm.ws.org.apache.neethi.3.0.2, \
  com.ibm.ws.org.apache.cxf.cxf.core.3.2, \
  com.ibm.ws.org.apache.cxf.cxf.rt.transports.http.3.2, \
  com.ibm.ws.org.apache.cxf.cxf.tools.common.3.2, \
