@@ -15,9 +15,11 @@ import javax.servlet.ServletContainerInitializer;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 
 import com.ibm.ws.cdi.web.impl.AbstractServletInitializer;
 import com.ibm.ws.cdi.web.interfaces.CDIWebRuntime;
+import com.ibm.ws.kernel.feature.FeatureProvisioner;
 import com.ibm.ws.runtime.metadata.ApplicationMetaData;
 import com.ibm.ws.webcontainer.webapp.WebAppConfigExtended;
 import com.ibm.wsspi.webcontainer.metadata.WebModuleMetaData;
@@ -33,6 +35,12 @@ public class WeldServletInitializer extends AbstractServletInitializer implement
     @Reference(name = "cdiWebRuntime", service = CDIWebRuntime.class)
     protected void setCdiWebRuntime(ServiceReference<CDIWebRuntime> ref) {
         super.setCdiWebRuntime(ref);
+    }
+
+    @Override
+    @Reference(name = "featureProvisioner", service = FeatureProvisioner.class, cardinality = ReferenceCardinality.MANDATORY)
+    protected void setFeatureProvisioner(ServiceReference<FeatureProvisioner> ref) {
+        super.setFeatureProvisioner(ref);
     }
 
     /** {@inheritDoc} */

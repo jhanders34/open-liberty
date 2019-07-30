@@ -10,6 +10,8 @@
  *******************************************************************************/
 package com.ibm.ws.cdi.web.impl;
 
+import java.util.Set;
+
 import javax.enterprise.inject.spi.BeanManager;
 import javax.servlet.ServletContainerInitializer;
 import javax.servlet.ServletContext;
@@ -22,6 +24,7 @@ import org.jboss.weld.probe.ProbeFilter;
 import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
@@ -29,6 +32,7 @@ import com.ibm.ws.cdi.internal.interfaces.CDIUtils;
 import com.ibm.ws.cdi.web.factories.WeldListenerFactory;
 import com.ibm.ws.cdi.web.impl.security.PrincipalServletRequestListener;
 import com.ibm.ws.cdi.web.interfaces.CDIWebRuntime;
+import com.ibm.ws.kernel.feature.FeatureProvisioner;
 import com.ibm.wsspi.kernel.service.utils.AtomicServiceReference;
 import com.ibm.wsspi.webcontainer.facade.ServletContextFacade;
 import com.ibm.wsspi.webcontainer.servlet.IServletContext;
@@ -40,12 +44,16 @@ public abstract class AbstractServletInitializer implements ServletContainerInit
 
     private final AtomicServiceReference<CDIWebRuntime> cdiWebRuntimeRef = new AtomicServiceReference<CDIWebRuntime>("cdiWebRuntime");
 
+    private final AtomicServiceReference<FeatureProvisioner> _featureProvisioner = new AtomicServiceReference<FeatureProvisioner>("featureProvisioner");
+
     public void activate(ComponentContext context) {
+        _featureProvisioner.activate(context);
         cdiWebRuntimeRef.activate(context);
     }
 
     protected void deactivate(ComponentContext context) {
         cdiWebRuntimeRef.deactivate(context);
+        _featureProvisioner.deactivate(context);
     }
 
     @Reference(name = "cdiWebRuntime", service = CDIWebRuntime.class)
@@ -55,6 +63,15 @@ public abstract class AbstractServletInitializer implements ServletContainerInit
 
     protected void unsetCdiWebRuntime(ServiceReference<CDIWebRuntime> ref) {
         cdiWebRuntimeRef.unsetReference(ref);
+    }
+
+    @Reference(name = "featureProvisioner", service = FeatureProvisioner.class, cardinality = ReferenceCardinality.MANDATORY)
+    protected void setFeatureProvisioner(ServiceReference<FeatureProvisioner> ref) {
+        _featureProvisioner.setReference(ref);
+    }
+
+    protected void unsetFeatureProvisioner(FeatureProvisioner featureProvisioner) {
+
     }
 
     protected CDIWebRuntime getCDIWebRuntime() {
@@ -94,15 +111,23 @@ public abstract class AbstractServletInitializer implements ServletContainerInit
                     Tr.debug(tc, "Bean Manager not found: " + contextID);
                 }
             } else {
-                isc.addListener(new PrincipalServletRequestListener());
 
-                JspFactory factory = JspFactory.getDefaultFactory();
-                if (factory != null) {
-                    JspApplicationContext applicationCtx = factory.getJspApplicationContext(ctx);
-                    applicationCtx.addELContextListener(WeldListenerFactory.newWeldELContextListener());
+                FeatureProvisioner featureProvisioner = _featureProvisioner.getService();
 
-                    beanManager.wrapExpressionFactory(applicationCtx.getExpressionFactory());
-                    applicationCtx.addELResolver(beanManager.getELResolver());
+                Set<String> features = _featureProvisioner.getService().getInstalledFeatures();
+                if (features.contains("appSecurity-2.0") || features.contains("appSecurity-1.0") || features.contains("appSecurity-3.0")) {
+                    isc.addListener(new PrincipalServletRequestListener());
+                }
+
+                if (features.contains("jsp-2.2") || features.contains("jsp-2.3")) {
+                    JspFactory factory = JspFactory.getDefaultFactory();
+                    if (factory != null) {
+                        JspApplicationContext applicationCtx = factory.getJspApplicationContext(ctx);
+                        applicationCtx.addELContextListener(WeldListenerFactory.newWeldELContextListener());
+
+                        beanManager.wrapExpressionFactory(applicationCtx.getExpressionFactory());
+                        applicationCtx.addELResolver(beanManager.getELResolver());
+                    }
                 }
                 if (CDIUtils.isDevelopementMode()) {
 
