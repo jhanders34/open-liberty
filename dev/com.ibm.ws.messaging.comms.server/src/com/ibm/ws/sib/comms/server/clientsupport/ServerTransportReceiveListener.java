@@ -135,8 +135,7 @@ public class ServerTransportReceiveListener extends CommonServerReceiveListener 
         if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled())
             SibTr.entry(this, tc, "dataReceived");
 
-        AuditManager auditManager = new AuditManager();
-        auditManager.setJMSConversationMetaData(conversation.getMetaData());
+        AuditManager.setJMSConversationMetaData(conversation.getMetaData());
 
         // Get a CommsServerByteBuffer to wrap the data
         CommsServerByteBuffer buffer = poolManager.allocate();

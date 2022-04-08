@@ -156,8 +156,6 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
     protected SubjectManager subjectManager;
     protected HTTPSRedirectHandler httpsRedirectHandler;
 
-    protected AuditManager auditManager;
-
     protected WebAuthenticatorProxy authenticatorProxy;
     protected WebProviderAuthenticatorProxy providerAuthenticatorProxy;
 
@@ -174,7 +172,6 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
      */
     public WebAppSecurityCollaboratorImpl() {
         this(new SubjectHelper(), new SubjectManager(), new HTTPSRedirectHandler());
-        this.auditManager = new AuditManager();
     }
 
     /**
@@ -617,7 +614,7 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
                 performSecurityChecks(req, resp, receivedSubject, webSecurityContext);
             }
 
-            //auditManager.setHttpServletRequest(req);
+            //AuditManager.setHttpServletRequest(req);
 
             performDelegation(req, servletName);
 
@@ -713,8 +710,10 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
         HttpServletRequest req = webRequest.getHttpServletRequest();
         if (wasch.isSSLRequired(webRequest, uriName)) {
             webReply = httpsRedirectHandler.getHTTPSRedirectWebReply(req);
-            AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, receivedSubject, AuditEvent.CRED_TYPE_JASPIC, null, AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(webReply.getStatusCode()));
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, AuditEvent.OUTCOME_FAILURE)) {
+                AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, receivedSubject, AuditEvent.CRED_TYPE_JASPIC, null, AuditEvent.OUTCOME_FAILURE);
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(webReply.getStatusCode()));
+            }
             return webReply;
         }
 
@@ -758,9 +757,14 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
                     // isUnprotected is only set when handleJaspi is invoked, but it's ok since AuthResult.RETURN is only set
                     // by the JASPIC code.
                     if (isUnprotected) {
-                        AuthenticationResult permitResult = new AuthenticationResult(AuthResult.SUCCESS, (Subject) null, AuditEvent.CRED_TYPE_JASPIC, null, AuditEvent.OUTCOME_SUCCESS);
-                        Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(statusCode));
-                        Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, permitResult, uriName, Integer.valueOf(HttpServletResponse.SC_OK));
+                        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(statusCode));
+                        }
+                        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_01, AuditConstants.SUCCESS)) {
+                            AuthenticationResult permitResult = new AuthenticationResult(AuthResult.SUCCESS, (Subject) null, AuditEvent.CRED_TYPE_JASPIC, null, AuditEvent.OUTCOME_SUCCESS);
+                            Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, permitResult, uriName, Integer.valueOf(HttpServletResponse.SC_OK));
+                        }
+
                         return PERMIT_REPLY;
                     } else if (statusCode == HttpServletResponse.SC_OK) {
                         // SEND_FAILURE but did not set the response code or set the wrong response code.
@@ -770,7 +774,9 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
                     }
                 }
                 webReply = new ReturnReply(statusCode, reason);
-                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(webReply.getStatusCode()));
+                if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                    Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(webReply.getStatusCode()));
+                }
                 SecurityViolationException secVE = convertWebSecurityException(new WebSecurityCollaboratorException(webReply.message, webReply, webSecurityContext));
                 throw secVE;
 
@@ -798,8 +804,10 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
             try {
                 validateWebReply(webSecurityContext, webReply);
             } catch (SecurityViolationException secVE) {
-                AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, savedSubject, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-                Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, Integer.valueOf(webReply.getStatusCode()));
+                if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_01, AuditEvent.OUTCOME_FAILURE)) {
+                    AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, savedSubject, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
+                    Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, Integer.valueOf(webReply.getStatusCode()));
+                }
                 throw secVE;
             }
 
@@ -1011,15 +1019,16 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
                                        String uriName,
                                        WebRequest webRequest,
                                        AuthenticationResult authResult) {
-        WebReply reply = null;
         if (authResult != null && authResult.getStatus() != AuthResult.SUCCESS) {
             String realm = authResult.realm;
             if (realm == null) {
                 realm = collabUtils.getUserRegistryRealm(securityServiceRef);
             }
-            reply = createReplyForAuthnFailure(authResult, realm);
-            authResult.setTargetRealm(authResult.realm != null ? authResult.realm : collabUtils.getUserRegistryRealm(securityServiceRef));
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(reply.getStatusCode()));
+            WebReply reply = createReplyForAuthnFailure(authResult, realm);
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                authResult.setTargetRealm(realm);
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(reply.getStatusCode()));
+            }
             return reply;
         }
         boolean isAuthorized = false;
@@ -1027,18 +1036,22 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
         if (authResult != null) {
             authResult.setTargetRealm(authResult.realm != null ? authResult.realm : collabUtils.getUserRegistryRealm(securityServiceRef));
             subjectManager.setCallerSubject(authResult.getSubject());
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(HttpServletResponse.SC_OK));
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(HttpServletResponse.SC_OK));
+            }
             isAuthorized = wasch.authorize(authResult, webRequest, uriName);
         }
         // For audit set reply now but leave Subject on thread
-        reply = isAuthorized ? new PermitReply() : DENY_AUTHZ_FAILED;
+        final WebReply reply = isAuthorized ? new PermitReply() : DENY_AUTHZ_FAILED;
 
-        auditManager.setWebRequest(webRequest);
+        AuditManager.setWebRequest(webRequest);
         if (authResult != null) {
-            auditManager.setRealm(authResult.getTargetRealm());
+            AuditManager.setRealm(authResult.getTargetRealm());
         }
 
-        Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, Integer.valueOf(reply.getStatusCode()));
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_01, reply == DENY_AUTHZ_FAILED ? AuditConstants.FAILURE : AuditConstants.SUCCESS)) {
+            Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, Integer.valueOf(reply.getStatusCode()));
+        }
         // now update current thread context
         if (isAuthorized) {
             // at this point set invocation subject = caller subject.
@@ -1093,7 +1106,6 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
             return true;
         }
 
-        WebReply webReply = PERMIT_REPLY;
         boolean result = true;
         WebRequest webRequest = new WebRequestImpl(req, resp, getSecurityMetadata(), webAppSecConfig);
         webRequest.setRequestAuthenticate(true);
@@ -1105,6 +1117,7 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
         if (authResult == null || authResult.getStatus() == AuthResult.CONTINUE) {
             authResult = authenticateRequest(webRequest);
         }
+        WebReply webReply = PERMIT_REPLY;
         if (authResult.getStatus() == AuthResult.SUCCESS) {
             boolean isPostLoginProcessDone = isPostLoginProcessDone(req);
             getAuthenticateApi().postProgrammaticAuthenticate(req, resp, authResult, !isPostLoginProcessDone, !isNewAuthenticate && !isPostLoginProcessDone);
@@ -1115,14 +1128,15 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
                 authResult.setTargetRealm(realm);
                 webReply = createReplyForAuthnFailure(authResult, realm);
             }
+            if (!isCredentialPresent && !resp.isCommitted() && webReply != null) {
+                webReply.writeResponse(resp);
+            }
         }
 
-        if (!isCredentialPresent && !resp.isCommitted() && webReply != null) {
-            webReply.writeResponse(resp);
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+            int statusCode = webReply != null ? Integer.valueOf(webReply.getStatusCode()) : resp.getStatus();
+            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
         }
-
-        int statusCode = webReply != null ? Integer.valueOf(webReply.getStatusCode()) : resp.getStatus();
-        Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
         return result;
     }
 
@@ -1736,15 +1750,24 @@ public class WebAppSecurityCollaboratorImpl implements IWebAppSecurityCollaborat
 
     // no null check for webReply object, so make sure it is not null upon calling this method.
     private void logAuditEntriesBeforeAuthn(WebReply webReply, Subject receivedSubject, String uriName, WebRequest webRequest) {
-        AuthenticationResult authResult;
-        if (webReply instanceof PermitReply) {
-            authResult = new AuthenticationResult(AuthResult.SUCCESS, receivedSubject, null, null, AuditEvent.OUTCOME_SUCCESS);
-        } else {
-            authResult = new AuthenticationResult(AuthResult.FAILURE, receivedSubject, null, null, AuditEvent.OUTCOME_FAILURE);
+        String outcome = webReply instanceof PermitReply ? AuditEvent.OUTCOME_SUCCESS : AuditEvent.OUTCOME_FAILURE;
+        boolean authnAuditReq = Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, outcome);
+        boolean authzAuditReq = Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_01, outcome);
+        if (authnAuditReq || authzAuditReq) {
+            AuthenticationResult authResult;
+            if (webReply instanceof PermitReply) {
+                authResult = new AuthenticationResult(AuthResult.SUCCESS, receivedSubject, null, null, AuditEvent.OUTCOME_SUCCESS);
+            } else {
+                authResult = new AuthenticationResult(AuthResult.FAILURE, receivedSubject, null, null, AuditEvent.OUTCOME_FAILURE);
+            }
+            int statusCode = Integer.valueOf(webReply.getStatusCode());
+            if (authnAuditReq) {
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
+            }
+            if (authzAuditReq) {
+                Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, statusCode);
+            }
         }
-        int statusCode = Integer.valueOf(webReply.getStatusCode());
-        Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
-        Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, uriName, statusCode);
     }
 
     /**

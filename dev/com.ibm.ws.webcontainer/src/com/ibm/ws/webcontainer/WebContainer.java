@@ -165,8 +165,6 @@ public abstract class WebContainer extends BaseContainer {
 
     private static ServiceLoader<ServletContainerInitializer> servletContainerInitializers;
     
-    protected AuditManager auditManager;
-
     private static int invocationCacheSize = 500;
     static {
         servletContainerInitializers = ServiceLoader.load(ServletContainerInitializer.class, WebContainer.class.getClassLoader());
@@ -217,7 +215,6 @@ public abstract class WebContainer extends BaseContainer {
 
     public void initialize(WebContainerConfiguration config) {
         this.wcconfig = config;
-        this.auditManager = new AuditManager();
 
         // initialize the encoding
         getURIEncoding();
@@ -785,7 +782,7 @@ public abstract class WebContainer extends BaseContainer {
             connContext.prepareForNextConnection(req, res);
             hreq = connContext.getRequest();
             hres = connContext.getResponse();
-            auditManager.setHttpServletRequest((Object)hreq);
+            AuditManager.setHttpServletRequest((Object)hreq);
 
             reqState.setCurrentThreadsIExtendedRequest(hreq);
             reqState.setCurrentThreadsIExtendedResponse(hres);

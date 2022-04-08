@@ -27,10 +27,8 @@ import com.ibm.ws.security.registry.UserRegistry;
 import com.ibm.ws.security.registry.UserRegistryService;
 import com.ibm.ws.webcontainer.security.internal.BasicAuthAuthenticator;
 import com.ibm.ws.webcontainer.security.internal.CertificateLoginAuthenticator;
-import com.ibm.ws.webcontainer.security.internal.DenyReply;
 import com.ibm.ws.webcontainer.security.internal.FormLoginAuthenticator;
 import com.ibm.ws.webcontainer.security.internal.SRTServletRequestUtils;
-import com.ibm.ws.webcontainer.security.internal.WebReply;
 import com.ibm.ws.webcontainer.security.metadata.LoginConfiguration;
 import com.ibm.ws.webcontainer.security.metadata.SecurityMetadata;
 import com.ibm.ws.webcontainer.security.openidconnect.OidcServer;
@@ -72,10 +70,19 @@ public class WebAuthenticatorProxy implements WebAuthenticator {
             // if target is unprotected, then check if TAI is enabled and invokeForUnprotectedURI is set as true.
             // if these conditions are met, return SUCCESS.
             if (webRequest.isPerformTAIForUnProtectedURI()) {
-                authResult = new AuthenticationResult(AuthResult.SUCCESS, (Subject) null, null, null, AuditEvent.OUTCOME_SUCCESS);
-                int statusCode = webRequest.getHttpServletResponse().getStatus();
-                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
-                Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, webRequest.getHttpServletRequest().getRequestURI(), statusCode);
+                boolean authnAuditReq = Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, AuditEvent.OUTCOME_SUCCESS);
+                boolean authzAuditReq = Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_01, AuditEvent.OUTCOME_SUCCESS);
+                if (authnAuditReq || authzAuditReq) {
+                    authResult = new AuthenticationResult(AuthResult.SUCCESS, (Subject) null, null, null, AuditEvent.OUTCOME_SUCCESS);
+                    int statusCode = webRequest.getHttpServletResponse().getStatus();
+                    if (authnAuditReq) {
+                        Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, statusCode);
+                    }
+                    if (authzAuditReq) {
+                        Audit.audit(Audit.EventID.SECURITY_AUTHZ_01, webRequest, authResult, webRequest.getHttpServletRequest().getRequestURI(), statusCode);
+                    }
+                }
+
                 // no need to set auth type, so return now.
                 return authResult;
             }
@@ -88,21 +95,25 @@ public class WebAuthenticatorProxy implements WebAuthenticator {
             if (authenticator instanceof CertificateLoginAuthenticator &&
                 authResult != null && authResult.getStatus() != AuthResult.SUCCESS &&
                 webAppSecurityConfig.allowFailOver() && !webRequest.isDisableClientCertFailOver()) {
-                HashMap<String, Object> extraAuditData = new HashMap<String, Object>();
-                extraAuditData.put(AuditConstants.ORIGINAL_AUTH_TYPE, authType);
+                String originalAuthType = authType;
                 authType = getFailOverToAuthType(webRequest);
-                extraAuditData.put(AuditConstants.FAILOVER_AUTH_TYPE, authType);
                 authenticator = getAuthenticatorForFailOver(authType, webRequest);
-                WebReply reply = new DenyReply("AuthenticationFailed");
-                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(reply.getStatusCode()));
+                if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                    Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(HttpServletResponse.SC_FORBIDDEN));
+                }
                 if (authenticator == null) {
                     return new AuthenticationResult(AuthResult.FAILURE, "Unable to get the failover WebAuthenticator. Unable to authenticate request.");
                 } else {
                     authResult = authenticator.authenticate(webRequest);
-                    if (authResult != null && authResult.getStatus() == AuthResult.SUCCESS) {
-                        Audit.audit(Audit.EventID.SECURITY_AUTHN_FAILOVER_01, webRequest, authResult, extraAuditData, Integer.valueOf(HttpServletResponse.SC_OK));
-                    } else {
-                        Audit.audit(Audit.EventID.SECURITY_AUTHN_FAILOVER_01, webRequest, authResult, extraAuditData, Integer.valueOf(reply.getStatusCode()));
+                    if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_FAILOVER_01, authResult.getAuditOutcome())) {
+                        HashMap<String, Object> extraAuditData = new HashMap<String, Object>();
+                        extraAuditData.put(AuditConstants.ORIGINAL_AUTH_TYPE, originalAuthType);
+                        extraAuditData.put(AuditConstants.FAILOVER_AUTH_TYPE, authType);
+                        if (authResult != null && authResult.getStatus() == AuthResult.SUCCESS) {
+                            Audit.audit(Audit.EventID.SECURITY_AUTHN_FAILOVER_01, webRequest, authResult, extraAuditData, Integer.valueOf(HttpServletResponse.SC_OK));
+                        } else {
+                            Audit.audit(Audit.EventID.SECURITY_AUTHN_FAILOVER_01, webRequest, authResult, extraAuditData, Integer.valueOf(HttpServletResponse.SC_FORBIDDEN));
+                        }
                     }
                 }
             }

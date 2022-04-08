@@ -149,16 +149,14 @@ final public class TrmSICoreConnectionFactoryImpl extends
         SICoreConnection sc = null;
 
         try {
-            AuditManager auditManager = new AuditManager();
-
             //if providerEndpoint(i.e remoteServerAddress) list is empty .. then try in-process
             if (cap.getProviderEPs().isEmpty()) {
-                auditManager.setJMSCallType("local");
+                AuditManager.setJMSCallType("local");
                 sc = getConnectionToLocalME(credentialType, props, cap);
             }
             else
             {
-                auditManager.setJMSCallType("remote");
+                AuditManager.setJMSCallType("remote");
                 sc = remoteBootstrap(credentialType, cap);
             }
         } catch (Exception e) {

@@ -51,7 +51,7 @@ public abstract class ProgrammaticServerEP extends Endpoint {
 
             ses = session;
             try {
-                session.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(Integer.valueOf("1001")), "THIS IS A TEST CLOSING STATUS FROM onOPEN"));
+                session.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(1001), "THIS IS A TEST CLOSING STATUS FROM onOPEN"));
 
             } catch (Exception ex) {
                 Logger.getLogger(ProgrammaticServerEP.class.getName()).log(Level.SEVERE, null, ex);
@@ -63,7 +63,7 @@ public abstract class ProgrammaticServerEP extends Endpoint {
             String[] vals = text.split(":");
 
             try {
-                ses.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(Integer.valueOf("9999")), "SHOULD NOT GET HERE"));
+                ses.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(9999), "SHOULD NOT GET HERE"));
 
             } catch (Exception ex) {
                 Logger.getLogger(ProgrammaticServerEP.class.getName()).log(Level.SEVERE, null, ex);

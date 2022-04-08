@@ -139,10 +139,10 @@ public class RepositoryManager {
      * Returns the ID of the repository to which the uniqueName belongs to.
      *
      * @param uniqueName
-     *            The uniqueName to retrieve the repository ID for.
+     *                       The uniqueName to retrieve the repository ID for.
      * @return The repository that best matches the uniqueName.
      * @throws WIMException
-     *             If the uniqueName is not found in any of the repositories.
+     *                          If the uniqueName is not found in any of the repositories.
      */
     protected String getRepositoryIdByUniqueName(String uniqueName) throws WIMException {
 
@@ -192,9 +192,8 @@ public class RepositoryManager {
             return repo;
         }
 
-        AuditManager auditManager = new AuditManager();
-        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(), auditManager.getRepositoryId(), uniqueName,
-                    realmName, null, Integer.valueOf("204"));
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, AuditManager.getRESTRequest(), AuditManager.getRequestType(), AuditManager.getRepositoryId(), uniqueName,
+                    realmName, null, Integer.valueOf(204));
 
         String msg = Tr.formatMessage(tc, WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, WIMMessageHelper.generateMsgParms(uniqueName, realmName));
         throw new EntityNotInRealmScopeException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, msg);
@@ -401,7 +400,7 @@ public class RepositoryManager {
      * the realm name gets cleared.
      *
      * @param realmName
-     *            The realm to set on the current thread.
+     *                      The realm to set on the current thread.
      * @see #clearRealmOnThread()
      */
     public static void setRealmOnThread(String realmName) {

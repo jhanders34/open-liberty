@@ -101,8 +101,6 @@ public class TokenExchange {
 
     public int numberRevoked = 0;
 
-    private final AuditManager auditManager = new AuditManager();
-
     private Enumeration<Locale> requestLocales = null;
 
     // internal class to encapsulate authentication and request info for convenient use.
@@ -308,9 +306,7 @@ public class TokenExchange {
             auditMap.get().put(AuditConstants.AUDIT_OUTCOME, AuditConstants.FAILURE);
             auditMap.get().put(AuditConstants.DETAILED_ERROR, AuditConstants.FAILURE_TO_RETURN_REQUEST);
         } else {
-            if (auditManager != null) {
-                auditMap.get().put("respBody", auditManager.getAgent());
-            }
+            auditMap.get().put("respBody", AuditManager.getAgent());
             auditMap.get().put(AuditConstants.AUDIT_OUTCOME, AuditConstants.SUCCESS);
         }
         Audit.audit(Audit.EventID.APPLICATION_PASSWORD_TOKEN_01, auditMap.get());

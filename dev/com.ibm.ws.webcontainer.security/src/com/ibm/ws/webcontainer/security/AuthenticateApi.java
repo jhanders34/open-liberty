@@ -145,16 +145,19 @@ public class AuthenticateApi {
         throwExceptionIfAlreadyAuthenticate(req, resp, config, username);
 
         AuthenticationResult authResult = basicAuthAuthenticator.basicAuthenticate(null, username, password, req, resp);
-        if (authResult == null || authResult.getStatus() != AuthResult.SUCCESS) {
-            String realm = authResult.realm;
-            if (realm == null) {
-                realm = collabUtils.getUserRegistryRealm(securityServiceRef);
-            }
+        boolean failure = authResult == null || authResult.getStatus() != AuthResult.SUCCESS;
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_API_AUTHN_01, authResult.getAuditOutcome())) {
             WebReply reply = null;
-            reply = createReplyForAuthnFailure(authResult, realm);
-
-            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(reply.getStatusCode()));
-
+            if (failure) {
+                String realm = authResult.realm;
+                if (realm == null) {
+                    realm = collabUtils.getUserRegistryRealm(securityServiceRef);
+                }
+                reply = createReplyForAuthnFailure(authResult, realm);
+            }
+            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, failure ? Integer.valueOf(reply.getStatusCode()) : Integer.valueOf(HttpServletResponse.SC_OK));
+        }
+        if (failure) {
             if (authResult.passwordExpired == true) {
                 throw new PasswordExpiredException(authResult.getReason());
             } else if (authResult.userRevoked == true) {
@@ -162,11 +165,6 @@ public class AuthenticateApi {
             } else {
                 throw new ServletException(authResult.getReason());
             }
-
-        } else {
-
-            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(HttpServletResponse.SC_OK));
-
         }
         postProgrammaticAuthenticate(req, resp, authResult);
     }
@@ -189,12 +187,14 @@ public class AuthenticateApi {
         logoutUnprotectedResourceServiceRef(req, res);
         createSubjectAndPushItOnThreadAsNeeded(req, res);
 
-        AuthenticationResult authResult = new AuthenticationResult(AuthResult.SUCCESS, subjectManager.getCallerSubject());
-        JaspiService jaspiService = getJaspiService();
-        if (jaspiService == null) {
-            authResult.setAuditCredType(req.getAuthType());
-            authResult.setAuditOutcome(AuditEvent.OUTCOME_SUCCESS);
-            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, AuditEvent.OUTCOME_SUCCESS)) {
+            AuthenticationResult authResult = new AuthenticationResult(AuthResult.SUCCESS, subjectManager.getCallerSubject());
+            JaspiService jaspiService = getJaspiService();
+            if (jaspiService == null) {
+                authResult.setAuditCredType(req.getAuthType());
+                authResult.setAuditOutcome(AuditEvent.OUTCOME_SUCCESS);
+                Audit.audit(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+            }
         }
 
         removeEntryFromAuthCache(req, res, config);
@@ -302,10 +302,12 @@ public class AuthenticateApi {
     public void simpleLogout(HttpServletRequest req, HttpServletResponse res) {
         createSubjectAndPushItOnThreadAsNeeded(req, res);
 
-        AuthenticationResult authResult = new AuthenticationResult(AuthResult.SUCCESS, subjectManager.getCallerSubject());
-        authResult.setAuditCredType(req.getAuthType());
-        authResult.setAuditOutcome(AuditEvent.OUTCOME_SUCCESS);
-        Audit.audit(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, AuditEvent.OUTCOME_SUCCESS)) {
+            AuthenticationResult authResult = new AuthenticationResult(AuthResult.SUCCESS, subjectManager.getCallerSubject());
+            authResult.setAuditCredType(req.getAuthType());
+            authResult.setAuditOutcome(AuditEvent.OUTCOME_SUCCESS);
+            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+        }
 
         removeEntryFromAuthCacheForUser(req, res);
         invalidateSession(req);
@@ -445,11 +447,13 @@ public class AuthenticateApi {
         if (subjectHelper.isUnauthenticated(callerSubject))
             return;
         if (!config.getWebAlwaysLogin()) {
-            AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, username);
-            authResult.setAuditCredType(req.getAuthType());
-            authResult.setAuditCredValue(username);
-            authResult.setAuditOutcome(AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(HttpServletResponse.SC_UNAUTHORIZED));
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_API_AUTHN_01, AuditEvent.OUTCOME_FAILURE)) {
+                AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, username);
+                authResult.setAuditCredType(req.getAuthType());
+                authResult.setAuditCredValue(username);
+                authResult.setAuditOutcome(AuditEvent.OUTCOME_FAILURE);
+                Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(HttpServletResponse.SC_UNAUTHORIZED));
+            }
             throw new ServletException("Authentication had been already established");
         }
         logout(req, resp, config);

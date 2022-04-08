@@ -70,6 +70,13 @@ public class Audit {
         if (auditService == null) {
             return false;
         }
+        if (eventID == EventID.SECURITY_AUTHN_01) {
+            // SECURITY_AUTHN_01 does some extra work besides just call audit.
+            return auditService.isAuditRequired(eventID.getEventType(), outcome)
+                   || auditService.isAuditRequired(AuditConstants.SECURITY_MEMBER_MGMT, AuditConstants.SUCCESS)
+                   || auditService.isAuditRequired(AuditConstants.SECURITY_MEMBER_MGMT, AuditConstants.FAILURE);
+        }
+
         return auditService.isAuditRequired(eventID.getEventType(), outcome);
     }
 

@@ -279,18 +279,17 @@ public class AuditPE implements ProbeExtension {
 					.isAuditRequired(AuditConstants.SECURITY_MEMBER_MGMT, AuditConstants.SUCCESS)
 					|| auditServiceRef.getService().isAuditRequired(AuditConstants.SECURITY_MEMBER_MGMT,
 							AuditConstants.FAILURE))) {
-				AuditManager auditManager = new AuditManager();
-				if (auditManager.getWebRequest() == null) {
-					auditManager.setWebRequest(webRequest);
+				if (AuditManager.getWebRequest() == null) {
+					AuditManager.setWebRequest(webRequest);
 				}
-				if (auditManager.getCredentialType() == null && authResult != null) {
-					auditManager.setCredentialType(authResult.getAuditCredType());
+				if (AuditManager.getCredentialType() == null && authResult != null) {
+					AuditManager.setCredentialType(authResult.getAuditCredType());
 				}
 
 				boolean userSet = false;
-				if (auditManager.getCredentialUser() == null && authResult != null
+				if (AuditManager.getCredentialUser() == null && authResult != null
 						&& authResult.getAuditCredValue() != null) {
-					auditManager.setCredentialUser(authResult.getAuditCredValue());
+					AuditManager.setCredentialUser(authResult.getAuditCredValue());
 					userSet = true;
 				}
 
@@ -298,12 +297,12 @@ public class AuditPE implements ProbeExtension {
 					HttpServletRequest req = webRequest.getHttpServletRequest();
 					if (req != null) {
 						if (!userSet && req.getUserPrincipal() != null && req.getUserPrincipal().getName() != null) {
-							auditManager.setCredentialUser(req.getUserPrincipal().getName());
+							AuditManager.setCredentialUser(req.getUserPrincipal().getName());
 						}
-						auditManager.setRemoteAddr(req.getRemoteAddr());
-						auditManager.setAgent(req.getHeader("User-Agent"));
-						auditManager.setLocalAddr(req.getLocalAddr());
-						auditManager.setLocalPort(String.valueOf(req.getLocalPort()));
+						AuditManager.setRemoteAddr(req.getRemoteAddr());
+						AuditManager.setAgent(req.getHeader("User-Agent"));
+						AuditManager.setLocalAddr(req.getLocalAddr());
+						AuditManager.setLocalPort(String.valueOf(req.getLocalPort()));
 						String sessionID = null;
 						final HttpServletRequest f_req = req;
 						sessionID = AccessController.doPrivileged(new PrivilegedAction<String>() {
@@ -318,9 +317,9 @@ public class AuditPE implements ProbeExtension {
 							}
 						});
 						if (sessionID != null) {
-							auditManager.setSessionId(sessionID);
+							AuditManager.setSessionId(sessionID);
 						}
-						auditManager.setHttpType(
+						AuditManager.setHttpType(
 								req.getScheme() != null ? req.getScheme().toUpperCase() : AuditEvent.REASON_TYPE_HTTP);
 					}
 

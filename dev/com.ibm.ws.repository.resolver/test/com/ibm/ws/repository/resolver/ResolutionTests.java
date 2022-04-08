@@ -2242,7 +2242,7 @@ public class ResolutionTests {
      */
     @SuppressWarnings("unchecked")
     @Test
-    public void testInstalledFeatureNeedsDifferentToleratedDependency() throws RepositoryException {
+    public void testInstalledFeatureNeedsDifferentToleratedDependencyPrivate() throws RepositoryException {
         assumeThat(testType, is(TestType.RESOLVE_AS_SET));
 
         ArrayList<ProvisioningFeatureDefinition> installedFeatures = new ArrayList<>();
@@ -2278,12 +2278,14 @@ public class ResolutionTests {
         // Not installed features
         EsaResourceWritable aInternal20 = WritableResourceFactory.createEsa(null);
         aInternal20.setProvideFeature("com.example.a.internal-2.0");
+        aInternal20.setSingleton("true");
         aInternal20.setVisibility(Visibility.PRIVATE);
         aInternal20.addRequireFeatureWithTolerates("com.example.base-2.0", emptyList());
         repoFeatures.add(aInternal20);
 
         EsaResourceWritable b20 = WritableResourceFactory.createEsa(null);
         b20.setProvideFeature("com.example.b-2.0");
+        b20.setSingleton("true");
         b20.setVisibility(Visibility.PUBLIC);
         b20.addRequireFeatureWithTolerates("com.example.base-2.0", emptyList());
         repoFeatures.add(b20);
@@ -2292,6 +2294,131 @@ public class ResolutionTests {
         Collection<List<RepositoryResource>> resolved = resolve(resolver, Arrays.asList(a10.getSymbolicName(), b20.getProvideFeature()));
         assertThat(resolved, containsInAnyOrder(Matchers.contains(base20, b20),
                                                 Matchers.contains(base20, aInternal20)));
+    }
+
+    /**
+     * Test that if an installed feature has a tolerated dependency and satisfying the dependencies of the requested features requires a different tolerated dependency, that
+     * feature is included in the
+     * returned install lists.
+     *
+     * @throws RepositoryException
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testInstalledFeatureNeedsDifferentToleratedDependencyPublic() throws RepositoryException {
+        assumeThat(testType, is(TestType.RESOLVE_AS_SET));
+
+        ArrayList<ProvisioningFeatureDefinition> installedFeatures = new ArrayList<>();
+
+        // Already installed features
+
+        // Hypothetical base features which delineate other features into two groups (like our eeCompatible features)
+
+        MockFeature base10 = new MockFeature("com.example.base-1.0");
+        base10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PRIVATE);
+        installedFeatures.add(base10);
+
+        // a-1.0 supports both b-1.0 and b-2.0 through a tolerated dependency on a.internal-1.0 & 2.0
+        MockFeature b10 = new MockFeature("com.example.b-1.0");
+        b10.addDependency("com.example.base-1.0");
+        b10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PUBLIC);
+        installedFeatures.add(b10);
+
+        MockFeature a10 = new MockFeature("com.example.a-1.0");
+        a10.addDependency("com.example.a.internal-1.0", "2.0");
+        a10.addDependency("com.example.b-1.0", "2.0");
+        a10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PUBLIC);
+        installedFeatures.add(a10);
+
+        MockFeature aInternal10 = new MockFeature("com.example.a.internal-1.0");
+        aInternal10.addDependency("com.example.b-1.0");
+        installedFeatures.add(aInternal10);
+
+        // Not installed features
+        EsaResourceWritable base20 = WritableResourceFactory.createEsa(null);
+        base20.setProvideFeature("com.example.base-2.0");
+        base20.setSingleton("true");
+        base20.setVisibility(Visibility.PRIVATE);
+        repoFeatures.add(base20);
+
+        EsaResourceWritable aInternal20 = WritableResourceFactory.createEsa(null);
+        aInternal20.setProvideFeature("com.example.a.internal-2.0");
+        aInternal20.setSingleton("true");
+        aInternal20.setVisibility(Visibility.PRIVATE);
+        aInternal20.addRequireFeatureWithTolerates("com.example.b-2.0", emptyList());
+        repoFeatures.add(aInternal20);
+
+        EsaResourceWritable b20 = WritableResourceFactory.createEsa(null);
+        b20.setProvideFeature("com.example.b-2.0");
+        b20.setSingleton("true");
+        b20.setVisibility(Visibility.PUBLIC);
+        b20.addRequireFeatureWithTolerates("com.example.base-2.0", emptyList());
+        repoFeatures.add(b20);
+
+        RepositoryResolver resolver = createResolver(installedFeatures);
+        Collection<List<RepositoryResource>> resolved = resolve(resolver, Arrays.asList(a10.getSymbolicName(), b20.getProvideFeature()));
+        assertThat(resolved, containsInAnyOrder(Matchers.contains(base20, b20),
+                                                Matchers.contains(base20, b20, aInternal20)));
+    }
+
+    /**
+     * Test that if an installed feature has a tolerated dependency and satisfying the dependencies of the requested features requires a different tolerated dependency, that
+     * feature is included in the
+     * returned install lists.
+     *
+     * @throws RepositoryException
+     */
+    @Test
+    public void testInstalledFeatureNeedsDifferentToleratedDependencyPublic2() throws RepositoryException {
+        assumeThat(testType, is(TestType.RESOLVE_AS_SET));
+
+        ArrayList<ProvisioningFeatureDefinition> installedFeatures = new ArrayList<>();
+
+        // Already installed features
+
+        // Hypothetical base features which delineate other features into two groups (like our eeCompatible features)
+
+        MockFeature base10 = new MockFeature("com.example.base-1.0");
+        base10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PRIVATE);
+        installedFeatures.add(base10);
+
+        // a-1.0 supports both b-1.0 and b-2.0 through a tolerated dependency on a.internal-1.0 & 2.0
+        MockFeature b10 = new MockFeature("com.example.b-1.0");
+        b10.addDependency("com.example.base-1.0");
+        b10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PUBLIC);
+        installedFeatures.add(b10);
+
+        MockFeature a10 = new MockFeature("com.example.a-1.0");
+        a10.addDependency("com.example.a.internal-1.0", "2.0");
+        a10.addDependency("com.example.b-1.0", "2.0");
+        a10.setVisibility(com.ibm.ws.kernel.feature.Visibility.PUBLIC);
+        installedFeatures.add(a10);
+
+        MockFeature aInternal10 = new MockFeature("com.example.a.internal-1.0");
+        aInternal10.addDependency("com.example.b-1.0");
+        installedFeatures.add(aInternal10);
+
+        MockFeature base20 = new MockFeature("com.example.base-2.0");
+        base20.setVisibility(com.ibm.ws.kernel.feature.Visibility.PRIVATE);
+        installedFeatures.add(base20);
+
+        MockFeature b20 = new MockFeature("com.example.b-2.0");
+        b20.addDependency("com.example.base-2.0");
+        b20.setVisibility(com.ibm.ws.kernel.feature.Visibility.PUBLIC);
+        installedFeatures.add(b20);
+
+        // Not installed features
+        EsaResourceWritable aInternal20 = WritableResourceFactory.createEsa(null);
+        aInternal20.setProvideFeature("com.example.a.internal-2.0");
+        aInternal20.setSingleton("true");
+        aInternal20.setVisibility(Visibility.PRIVATE);
+        aInternal20.addRequireFeatureWithTolerates("com.example.b-2.0", emptyList());
+        repoFeatures.add(aInternal20);
+
+        RepositoryResolver resolver = createResolver(installedFeatures);
+        Collection<List<RepositoryResource>> resolved = resolve(resolver, Arrays.asList(a10.getSymbolicName(), b20.getSymbolicName()));
+        System.out.println("JHA: " + resolved);
+        assertThat(resolved, contains(Matchers.contains(aInternal20)));
     }
 
     /**
@@ -2475,8 +2602,8 @@ public class ResolutionTests {
     /**
      * Run a test to make sure that a sample with an applies to set is resolved correctly
      *
-     * @param name The name of the sample
-     * @param appliesTo The applies to to put onto the sample
+     * @param name           The name of the sample
+     * @param appliesTo      The applies to to put onto the sample
      * @param productVersion The product version to be
      * @throws RepositoryResourceException
      * @throws RepositoryBackendException
@@ -2497,9 +2624,9 @@ public class ResolutionTests {
     /**
      * Run a test against a product definition with the supplied version and expect a single result back.
      *
-     * @param name The name to resolve
+     * @param name           The name to resolve
      * @param productVersion The product version to use
-     * @param testResource The resource to expect
+     * @param testResource   The resource to expect
      * @throws IOException
      * @throws ProductInfoParseException
      * @throws RepositoryException
@@ -2544,8 +2671,8 @@ public class ResolutionTests {
      * Creates an {@link EsaResourceWritable} and adds it to the list of features in the repo with just the core fields set.
      *
      * @param symbolicName The symbolic name of the resource
-     * @param shortName The short name of the resource
-     * @param version The version of the resource
+     * @param shortName    The short name of the resource
+     * @param version      The version of the resource
      * @return The resource
      * @throws RepositoryResourceException
      * @throws RepositoryBackendException
@@ -2557,11 +2684,11 @@ public class ResolutionTests {
     /**
      * Creates an {@link EsaResourceWritable} and adds it to the list of features in the repo
      *
-     * @param symbolicName The symbolic name of the resource
-     * @param shortName The short name of the resource
-     * @param version The version of the resource
+     * @param symbolicName           The symbolic name of the resource
+     * @param shortName              The short name of the resource
+     * @param version                The version of the resource
      * @param dependencySymoblicName The symbolic names of dependencies
-     * @param appliesTo The product this feature applies to
+     * @param appliesTo              The product this feature applies to
      * @return The resource
      * @throws RepositoryBackendException
      */
@@ -2573,14 +2700,14 @@ public class ResolutionTests {
     /**
      * Creates an {@link EsaResourceWritable} and adds it to the list of features in the repo.
      *
-     * @param symbolicName The symbolic name of the resource
-     * @param shortName The short name of the resource
-     * @param version The version of the resource
-     * @param appliesTo The product this feature applies to
+     * @param symbolicName           The symbolic name of the resource
+     * @param shortName              The short name of the resource
+     * @param version                The version of the resource
+     * @param appliesTo              The product this feature applies to
      * @param dependencySymoblicName The symbolic names of dependencies
      * @param provisionSymbolicNames The symbolic name(s) of the capability required for this feature to be auto provision
-     * @param autoInstallable The autoInstallable value to use
-     * @param requiredFixes fixes required by this feature
+     * @param autoInstallable        The autoInstallable value to use
+     * @param requiredFixes          fixes required by this feature
      * @return The resource
      * @throws RepositoryBackendException
      */

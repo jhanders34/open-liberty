@@ -135,9 +135,10 @@ public class FormLoginExtensionProcessor extends WebExtensionProcessor {
             return true;
         }
         if (authResult.getStatus() != AuthResult.SUCCESS) {
-            WebRequest webRequest = new WebRequestImpl(request, response, null, webAppSecConfig);
-            WebReply reply = new DenyReply("AuthenticationFailed");
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(reply.getStatusCode()));
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                WebRequest webRequest = new WebRequestImpl(request, response, null, webAppSecConfig);
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(HttpServletResponse.SC_FORBIDDEN));
+            }
             if (!isJaspiEnabled() || !isPostLoginProcessDone(request)) {
                 handleError(request, response);
             }
@@ -176,16 +177,15 @@ public class FormLoginExtensionProcessor extends WebExtensionProcessor {
         BasicAuthAuthenticator basicAuthAuthenticator = new BasicAuthAuthenticator(authenticationService, userRegistry, ssoCookieHelper, webAppSecConfig);
 
         AuthenticationResult authResult = basicAuthAuthenticator.basicAuthenticate(null, username, password, req, res);
-        authResult.setTargetRealm(authResult.realm);
 
         if (authResult.getStatus() != AuthResult.SUCCESS) {
             handleError(req, res);
-            String realm = authResult.realm;
-            WebRequest webRequest = new WebRequestImpl(req, res, null, webAppSecConfig);
-            WebReply reply = new DenyReply("AuthenticationFailed");
-            authResult.setAuditCredType("FORM");
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(reply.getStatusCode()));
-
+            if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_01, authResult.getAuditOutcome())) {
+                authResult.setTargetRealm(authResult.realm);
+                WebRequest webRequest = new WebRequestImpl(req, res, null, webAppSecConfig);
+                authResult.setAuditCredType("FORM");
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_01, webRequest, authResult, Integer.valueOf(HttpServletResponse.SC_FORBIDDEN));
+            }
             return;
         }
 
@@ -368,7 +368,7 @@ public class FormLoginExtensionProcessor extends WebExtensionProcessor {
     }
 
     private boolean isPostLoginProcessDone(HttpServletRequest req) {
-        Boolean result = (Boolean)req.getAttribute("com.ibm.ws.security.javaeesec.donePostLoginProcess");
+        Boolean result = (Boolean) req.getAttribute("com.ibm.ws.security.javaeesec.donePostLoginProcess");
         if (result != null && result) {
             return true;
         }

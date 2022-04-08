@@ -12,12 +12,10 @@ package com.ibm.ws.webcontainer.security.jacc;
 
 import javax.security.auth.Subject;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
-import com.ibm.websphere.security.audit.AuditAuthResult;
-import com.ibm.websphere.security.audit.AuditAuthenticationResult;
-import com.ibm.websphere.security.audit.AuditEvent;
 import com.ibm.ws.runtime.metadata.ComponentMetaData;
 import com.ibm.ws.security.audit.Audit;
 import com.ibm.ws.security.audit.utils.AuditConstants;
@@ -28,7 +26,6 @@ import com.ibm.ws.webcontainer.security.AuthenticationResult;
 import com.ibm.ws.webcontainer.security.WebAppAuthorizationHelper;
 import com.ibm.ws.webcontainer.security.WebRequest;
 import com.ibm.ws.webcontainer.security.internal.DenyReply;
-import com.ibm.ws.webcontainer.security.internal.PermitReply;
 import com.ibm.ws.webcontainer.security.internal.WebReply;
 import com.ibm.wsspi.kernel.service.utils.AtomicServiceReference;
 import com.ibm.wsspi.webcontainer.RequestProcessor;
@@ -71,15 +68,10 @@ public class WebAppJaccAuthorizationHelper implements WebAppAuthorizationHelper 
         boolean isAuthorized = jaccServiceRef.getService().isAuthorized(getApplicationName(), getModuleName(), uriName, req.getMethod(), req, authResult.getSubject());
         //String[] methodNameArray = new String[] { req.getMethod() };
         //WebResourcePermission webPerm = new WebResourcePermission(uriName, methodNameArray);
-        WebReply reply = isAuthorized ? new PermitReply() : DENY_AUTHZ_FAILED;
 
-        if (isAuthorized) {
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.SUCCESS, authResult.getSubject(), AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_SUCCESS);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_02, webRequest, authResult, uriName, AuditConstants.WEB_CONTAINER, Integer.valueOf(reply.getStatusCode()));
-        } else {
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.FAILURE, authResult.getSubject(), AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_02, webRequest, authResult, uriName, AuditConstants.WEB_CONTAINER, Integer.valueOf(reply.getStatusCode()));
-
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_02, isAuthorized ? AuditConstants.SUCCESS : AuditConstants.FAILURE)) {
+            Audit.audit(Audit.EventID.SECURITY_AUTHZ_02, webRequest, authResult, uriName, AuditConstants.WEB_CONTAINER,
+                        Integer.valueOf(isAuthorized ? HttpServletResponse.SC_OK : HttpServletResponse.SC_FORBIDDEN));
         }
 
         if (!isAuthorized) {

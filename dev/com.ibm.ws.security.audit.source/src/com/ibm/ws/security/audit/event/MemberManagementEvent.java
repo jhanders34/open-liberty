@@ -108,29 +108,27 @@ public class MemberManagementEvent extends AuditEvent {
                 }
 
                 // some items are populated on the AuditManager thread by AuditPE
-                AuditManager auditManager = new AuditManager();
+                set(AuditEvent.TARGET_CREDENTIAL_TOKEN, AuditManager.getCredentialUser());
+                set(AuditEvent.TARGET_CREDENTIAL_TYPE, AuditManager.getCredentialType());
 
-                set(AuditEvent.TARGET_CREDENTIAL_TOKEN, auditManager.getCredentialUser());
-                set(AuditEvent.TARGET_CREDENTIAL_TYPE, auditManager.getCredentialType());
-
-                if (auditManager.getRemoteAddr() != null) {
-                    set(AuditEvent.INITIATOR_HOST_ADDRESS, auditManager.getRemoteAddr());
+                if (AuditManager.getRemoteAddr() != null) {
+                    set(AuditEvent.INITIATOR_HOST_ADDRESS, AuditManager.getRemoteAddr());
                 }
 
-                if (auditManager.getAgent() != null) {
-                    set(AuditEvent.INITIATOR_HOST_AGENT, auditManager.getAgent());
+                if (AuditManager.getAgent() != null) {
+                    set(AuditEvent.INITIATOR_HOST_AGENT, AuditManager.getAgent());
                 }
 
-                if (auditManager.getLocalAddr() != null && auditManager.getLocalPort() != null) {
-                    set(AuditEvent.TARGET_HOST_ADDRESS, auditManager.getLocalAddr() + ":" + auditManager.getLocalPort());
+                if (AuditManager.getLocalAddr() != null && AuditManager.getLocalPort() != null) {
+                    set(AuditEvent.TARGET_HOST_ADDRESS, AuditManager.getLocalAddr() + ":" + AuditManager.getLocalPort());
                 }
 
-                if (auditManager.getSessionId() != null) {
-                    set(AuditEvent.TARGET_SESSION, auditManager.getSessionId());
+                if (AuditManager.getSessionId() != null) {
+                    set(AuditEvent.TARGET_SESSION, AuditManager.getSessionId());
                 }
 
-                if (auditManager.getHttpType() != null) {
-                    httpType = auditManager.getHttpType();
+                if (AuditManager.getHttpType() != null) {
+                    httpType = AuditManager.getHttpType();
                 }
 
             }

@@ -288,6 +288,40 @@ public class RepositoryResolverTest {
         assertThat(resolver.createInstallList("com.example.featureA"), contains(internalA20));
     }
 
+    /**
+     * Test creating an install list where one a feature with a tolerated dependency is installed but the install list needs to include the other tolerated dependency
+     */
+    @Test
+    public void testCreateInstallListToleratesPartiallyInstalled2() {
+        MockFeature base10 = new MockFeature("com.example.base-1.0");
+        MockFeature base20 = new MockFeature("com.example.base-2.0");
+
+        MockFeature featureA = new MockFeature("com.example.featureA");
+        featureA.addDependency("com.example.internalFeatureA-1.0", "2.0");
+        featureA.addDependency("com.example.base-1.0", "2.0");
+
+        MockFeature internalA10 = new MockFeature("com.example.internalFeatureA-1.0");
+        internalA10.addDependency("com.example.base-1.0");
+
+        MockFeature featureB10 = new MockFeature("com.example.featureB-1.0");
+        featureA.addDependency("com.example.base-1.0");
+
+        EsaResourceWritable internalA20 = WritableResourceFactory.createEsa(null);
+        internalA20.setProvideFeature("com.example.internalFeatureA-2.0");
+        internalA20.addRequireFeatureWithTolerates("com.example.base-2.0", Collections.emptyList());
+
+        EsaResourceWritable featureB20 = WritableResourceFactory.createEsa(null);
+        featureB20.setProvideFeature("com.example.featureB-2.0");
+        featureB20.addRequireFeatureWithTolerates("com.example.base-2.0", Collections.emptyList());
+
+        RepositoryResolver resolver = testResolver().withResolvedInstalledFeature(featureB10, featureA, base10)
+                                                    .withInstalledFeature(base10, internalA10)
+                                                    .withResolvedFeature(internalA20, featureB20)
+                                                    .build();
+
+        assertThat(resolver.createInstallList("com.example.featureA"), contains(internalA20));
+    }
+
     private static ResolverBuilder testResolver() {
         return new ResolverBuilder(ResolutionMode.IGNORE_CONFLICTS);
     }

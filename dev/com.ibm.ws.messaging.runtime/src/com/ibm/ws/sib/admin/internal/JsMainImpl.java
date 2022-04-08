@@ -641,9 +641,8 @@ public final class JsMainImpl implements JsMain {
             SibTr.entry(tc, thisMethodName, new Object[] { busName, engine });
         }
 
-        AuditManager auditManager = new AuditManager();
-        auditManager.setJMSBusName(busName);
-        auditManager.setJMSMessagingEngine(engine);
+        AuditManager.setJMSBusName(busName);
+        AuditManager.setJMSMessagingEngine(engine);
 
         Enumeration vEnum = _messagingEngines.elements();
         JsMessagingEngine foundMessagingEngine = null;

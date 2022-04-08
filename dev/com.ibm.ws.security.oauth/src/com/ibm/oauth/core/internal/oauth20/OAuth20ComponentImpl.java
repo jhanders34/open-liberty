@@ -783,8 +783,7 @@ public class OAuth20ComponentImpl extends OAuthComponentImpl implements
 
             String json = OAuth20Util.JSONEncode(data);
 
-            AuditManager auditManager = new AuditManager();
-            auditManager.setAgent(json);
+            AuditManager.setAgent(json);
 
             try {
                 PrintWriter pw = response.getWriter();

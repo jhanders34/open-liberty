@@ -24,6 +24,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.security.auth.Subject;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -97,6 +98,9 @@ public class FormLogoutExtensionProcessor extends WebExtensionProcessor {
      */
     private void formLogout(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
 
+        String outcome = null;
+        String str = null;
+        Subject returnSubjectOnLogout = null;
         try {
             // if we have a valid custom logout page, set an attribute so SAML SLO knows about it.
             String exitPage = getValidLogoutExitPage(req);
@@ -104,38 +108,36 @@ public class FormLogoutExtensionProcessor extends WebExtensionProcessor {
                 req.setAttribute("FormLogoutExitPage", exitPage);
             }
             authenticateApi.logout(req, res, webAppSecurityConfig);
-            String str = null;
 
             // if SAML SLO is in use, it will write the audit record and take care of the logoutExitPage redirection
             if (req.getAttribute("SpSLOInProgress") == null) {
-                AuthenticationResult authResult = new AuthenticationResult(AuthResult.SUCCESS, str);
-                authResult.setAuditLogoutSubject(authenticateApi.returnSubjectOnLogout());
-                authResult.setAuditCredType("FORM");
-                authResult.setAuditOutcome(AuditEvent.OUTCOME_SUCCESS);
-                authResult.setTargetRealm(authResult.realm);
-                Audit.audit(Audit.EventID.SECURITY_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+                returnSubjectOnLogout = authenticateApi.returnSubjectOnLogout();
+                outcome = AuditEvent.OUTCOME_SUCCESS;
                 redirectLogoutExitPage(req, res);
             }
         } catch (ServletException se) {
-            String str = "ServletException: " + se.getMessage();
-
-            AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, str);
-            authResult.setAuditCredType("FORM");
-            authResult.setAuditOutcome(AuditEvent.OUTCOME_FAILURE);
-            authResult.setTargetRealm(authResult.realm);
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+            str = "ServletException: " + se.getMessage();
+            outcome = AuditEvent.OUTCOME_FAILURE;
 
             throw se;
         } catch (IOException ie) {
-            String str = "IOException: " + ie.getMessage();
-
-            AuthenticationResult authResult = new AuthenticationResult(AuthResult.FAILURE, str);
-            authResult.setAuditCredType("FORM");
-            authResult.setAuditOutcome(AuditEvent.OUTCOME_FAILURE);
-            authResult.setTargetRealm(authResult.realm);
-            Audit.audit(Audit.EventID.SECURITY_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+            str = "IOException: " + ie.getMessage();
+            outcome = AuditEvent.OUTCOME_FAILURE;
 
             throw ie;
+
+        } finally {
+            // if outcome is null a different exception happened before we set it so don't do anything.
+            if (outcome != null && Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHN_TERMINATE_01, outcome)) {
+                AuthenticationResult authResult = new AuthenticationResult(outcome == AuditEvent.OUTCOME_SUCCESS ? AuthResult.SUCCESS : AuthResult.FAILURE, str);
+                if (outcome == AuditEvent.OUTCOME_SUCCESS) {
+                    authResult.setAuditLogoutSubject(returnSubjectOnLogout);
+                }
+                authResult.setAuditCredType("FORM");
+                authResult.setAuditOutcome(outcome);
+                authResult.setTargetRealm(authResult.realm);
+                Audit.audit(Audit.EventID.SECURITY_AUTHN_TERMINATE_01, req, authResult, Integer.valueOf(res.getStatus()));
+            }
 
         }
 

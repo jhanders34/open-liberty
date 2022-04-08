@@ -31,11 +31,10 @@ import javax.websocket.SendHandler;
 import javax.websocket.SendResult;
 import javax.websocket.Session;
 
-import io.openliberty.wsoc.common.Constants;
-import io.openliberty.wsoc.common.Utils;
-
 import basic.war.AnnotatedPartialServerEP.AnnotatedPartialTextTest;
 import basic.war.coding.FormatOne;
+import io.openliberty.wsoc.common.Constants;
+import io.openliberty.wsoc.common.Utils;
 
 /**
  *
@@ -522,7 +521,7 @@ public abstract class ProgrammaticServerEP extends Endpoint {
 
             ses = session;
             try {
-                session.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(Integer.valueOf("1001")), "THIS IS A TEST CLOSING STATUS FROM onOPEN"));
+                session.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(1001), "THIS IS A TEST CLOSING STATUS FROM onOPEN"));
 
             } catch (Exception ex) {
                 Logger.getLogger(TextEndpoint.class.getName()).log(Level.SEVERE, null, ex);
@@ -534,7 +533,7 @@ public abstract class ProgrammaticServerEP extends Endpoint {
             String[] vals = text.split(":");
 
             try {
-                ses.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(Integer.valueOf("9999")), "SHOULD NOT GET HERE"));
+                ses.close(new CloseReason(CloseReason.CloseCodes.getCloseCode(9999), "SHOULD NOT GET HERE"));
 
             } catch (Exception ex) {
                 Logger.getLogger(TextEndpoint.class.getName()).log(Level.SEVERE, null, ex);

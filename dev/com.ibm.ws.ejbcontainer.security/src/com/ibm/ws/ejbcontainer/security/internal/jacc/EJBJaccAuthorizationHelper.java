@@ -89,10 +89,6 @@ public class EJBJaccAuthorizationHelper implements EJBAuthorizationHelper {
      */
     @Override
     public void authorizeEJB(EJBRequestData request, Subject subject) throws EJBAccessDeniedException {
-        auditManager = new AuditManager();
-        Object req = auditManager.getHttpServletRequest();
-        Object webRequest = auditManager.getWebRequest();
-        String realm = auditManager.getRealm();
         EJBMethodMetaData methodMetaData = request.getEJBMethodMetaData();
         Object[] methodArguments = request.getMethodArguments();
         String applicationName = methodMetaData.getEJBComponentMetaData().getJ2EEName().getApplication();
@@ -102,10 +98,6 @@ public class EJBJaccAuthorizationHelper implements EJBAuthorizationHelper {
         String methodSignature = methodMetaData.getMethodSignature();
         String beanName = methodMetaData.getEJBComponentMetaData().getJ2EEName().getComponent();
         List<Object> methodParameters = null;
-
-        HashMap<String, Object> ejbAuditHashMap = new HashMap<String, Object>();
-
-        populateAuditEJBHashMap(request, ejbAuditHashMap);
 
         Object bean = request.getBeanInstance();
         EnterpriseBean ejb = null;
@@ -121,19 +113,27 @@ public class EJBJaccAuthorizationHelper implements EJBAuthorizationHelper {
                                                                         subject);
         String authzUserName = subject.getPrincipals(WSPrincipal.class).iterator().next().getName();
 
+        String outcome = isAuthorized ? AuditEvent.OUTCOME_SUCCESS : AuditEvent.OUTCOME_FAILURE;
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_03, outcome)) {
+            Object req = AuditManager.getHttpServletRequest();
+            Object webRequest = AuditManager.getWebRequest();
+            String realm = AuditManager.getRealm();
+            HashMap<String, Object> ejbAuditHashMap = new HashMap<String, Object>();
+
+            populateAuditEJBHashMap(request, ejbAuditHashMap);
+
+            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(isAuthorized ? AuditAuthResult.SUCCESS : AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, outcome);
+            Audit.audit(Audit.EventID.SECURITY_AUTHZ_03, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject,
+                        isAuthorized ? Integer.valueOf(200) : Integer.valueOf(403));
+        }
+
         if (!isAuthorized) {
             Tr.audit(tc, "EJB_JACC_AUTHZ_FAILED", authzUserName, methodName, applicationName);
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_03, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, Integer.valueOf("403"));
-
             throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
                                                                             TraceConstants.MESSAGE_BUNDLE,
                                                                             "EJB_JACC_AUTHZ_FAILED",
                                                                             new Object[] { authzUserName, methodName, applicationName },
                                                                             "CWWKS9406A: Authorization by the JACC provider failed. The user is not granted access to any of the required roles."));
-        } else {
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.SUCCESS, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_SUCCESS);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_03, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, Integer.valueOf("200"));
         }
 
     }

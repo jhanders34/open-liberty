@@ -86,8 +86,6 @@ public class EJBSecurityCollaboratorImpl implements EJBSecurityCollaborator<Secu
     protected SubjectManager subjectManager;
     protected CollaboratorUtils collabUtils;
 
-    protected AuditManager auditManager;
-
     protected volatile EJBSecurityConfig ejbSecConfig = null;
     private EJBAuthorizationHelper eah = this;
 
@@ -100,7 +98,6 @@ public class EJBSecurityCollaboratorImpl implements EJBSecurityCollaborator<Secu
      */
     public EJBSecurityCollaboratorImpl() {
         this(new SubjectManager());
-        this.auditManager = new AuditManager();
     }
 
     public EJBSecurityCollaboratorImpl(SubjectManager subjectManager) {
@@ -443,73 +440,63 @@ public class EJBSecurityCollaboratorImpl implements EJBSecurityCollaborator<Secu
         String applicationName = getApplicationName(methodMetaData);
         String methodName = methodMetaData.getMethodName();//TODO: which API to call? methodInfo.getMethodSignature()+":"+methodInfo.getInterfaceType().getValue();
 
-        Object req = (auditManager != null) ? auditManager.getHttpServletRequest() : null;
-        Object webRequest = (auditManager != null) ? auditManager.getWebRequest() : null;
-        String realm = (auditManager != null) ? auditManager.getRealm() : null;
-
-        HashMap<String, Object> ejbAuditHashMap = new HashMap<String, Object>();
-
-        populateAuditEJBHashMap(request, ejbAuditHashMap);
-
         Collection<String> roles = getRequiredRoles(methodMetaData);
 
-        //check if bean method is excluded
-        if (methodMetaData.isDenyAll()) {
-            ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.REASON_TYPE_EJB_DENYALL);
-            Tr.audit(tc, "EJB_AUTHZ_EXCLUDED", authzUserName, methodName, applicationName);
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles, Integer.valueOf("403"));
+        String outcome = null;
+        String reasonType = null;
+        try {
+            //check if bean method is excluded
+            if (methodMetaData.isDenyAll()) {
+                outcome = AuditEvent.OUTCOME_FAILURE;
+                reasonType = AuditEvent.REASON_TYPE_EJB_DENYALL;
+                Tr.audit(tc, "EJB_AUTHZ_EXCLUDED", authzUserName, methodName, applicationName);
 
-            throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
-                                                                            TraceConstants.MESSAGE_BUNDLE,
-                                                                            "EJB_AUTHZ_EXCLUDED",
-                                                                            new Object[] { authzUserName, methodName, applicationName },
-                                                                            "CWWKS9402A: Authorization failed for user {0} while invoking {1} on {2} because the method is explicitly excluded."));
-        }
-
-        //return immediately when permitAll is set
-        if (methodMetaData.isPermitAll()) {
-            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                Tr.debug(tc, "Authorization granted for " + methodName + " on " + applicationName + " because permitAll is set.");
+                throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
+                                                                                TraceConstants.MESSAGE_BUNDLE,
+                                                                                "EJB_AUTHZ_EXCLUDED",
+                                                                                new Object[] { authzUserName, methodName, applicationName },
+                                                                                "CWWKS9402A: Authorization failed for user {0} while invoking {1} on {2} because the method is explicitly excluded."));
             }
-            ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.REASON_TYPE_EJB_PERMITALL);
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.SUCCESS, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_SUCCESS);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles, Integer.valueOf("200"));
 
-            return;
-        }
-
-        if (roles == null || roles.isEmpty()) {
-            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                Tr.debug(tc, "Authorization granted for " + methodName + " on " + applicationName + " because no roles are required.");
+            //return immediately when permitAll is set
+            if (methodMetaData.isPermitAll()) {
+                if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                    Tr.debug(tc, "Authorization granted for " + methodName + " on " + applicationName + " because permitAll is set.");
+                }
+                outcome = AuditEvent.OUTCOME_SUCCESS;
+                reasonType = AuditEvent.REASON_TYPE_EJB_PERMITALL;
+                return;
             }
-            ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.REASON_TYPE_EJB_NO_ROLES);
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.SUCCESS, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_SUCCESS);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, null, Integer.valueOf("200"));
 
-            return;
-        }
-        waitForSecurity();
-        SecurityService securityService = securityServiceRef.getService();
-        AuthorizationService authzService = securityService.getAuthorizationService();
+            if (roles == null || roles.isEmpty()) {
+                if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                    Tr.debug(tc, "Authorization granted for " + methodName + " on " + applicationName + " because no roles are required.");
+                }
+                outcome = AuditEvent.OUTCOME_SUCCESS;
+                reasonType = AuditEvent.REASON_TYPE_EJB_NO_ROLES;
+                roles = null;
 
-        if (authzService == null) {
-            // If we can not get the authorization service, fail securely
-            ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.REASON_TYPE_EJB_NO_AUTHZ_SERVICE);
-            AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-            Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles, Integer.valueOf("403"));
+                return;
+            }
+            waitForSecurity();
+            SecurityService securityService = securityServiceRef.getService();
+            AuthorizationService authzService = securityService.getAuthorizationService();
 
-            Tr.error(tc, "EJB_AUTHZ_SERVICE_NOTFOUND", authzUserName, methodName, applicationName);
-            throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
-                                                                            TraceConstants.MESSAGE_BUNDLE,
-                                                                            "EJB_AUTHZ_SERVICE_NOTFOUND",
-                                                                            new Object[] { authzUserName, methodName, applicationName },
-                                                                            "CWWKS9403E: The authorization service could not be found. As a result, the user is not authorized."));
-        } else {
+            if (authzService == null) {
+                // If we can not get the authorization service, fail securely
+                outcome = AuditEvent.OUTCOME_FAILURE;
+                reasonType = AuditEvent.REASON_TYPE_EJB_NO_AUTHZ_SERVICE;
+
+                Tr.error(tc, "EJB_AUTHZ_SERVICE_NOTFOUND", authzUserName, methodName, applicationName);
+                throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
+                                                                                TraceConstants.MESSAGE_BUNDLE,
+                                                                                "EJB_AUTHZ_SERVICE_NOTFOUND",
+                                                                                new Object[] { authzUserName, methodName, applicationName },
+                                                                                "CWWKS9403E: The authorization service could not be found. As a result, the user is not authorized."));
+            }
             if (!authzService.isAuthorized(applicationName, roles, subject)) {
-                ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.EJB);
-                AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_FAILURE);
-                Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles, Integer.valueOf("403"));
+                outcome = AuditEvent.OUTCOME_FAILURE;
+                reasonType = AuditEvent.EJB;
 
                 Tr.audit(tc, "EJB_AUTHZ_FAILED", authzUserName, methodName, applicationName, roles);
                 throw new EJBAccessDeniedException(TraceNLS.getFormattedMessage(this.getClass(),
@@ -518,12 +505,31 @@ public class EJBSecurityCollaboratorImpl implements EJBSecurityCollaborator<Secu
                                                                                 new Object[] { authzUserName, methodName, applicationName,
                                                                                                roles },
                                                                                 "CWWKS9400A: Authorization failed. The user is not granted access to any of the required roles."));
-            } else {
-                ejbAuditHashMap.put(AuditEvent.REASON_TYPE, AuditEvent.EJB);
-                AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(AuditAuthResult.SUCCESS, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, AuditEvent.OUTCOME_SUCCESS);
-                Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles, Integer.valueOf("200"));
+            }
+
+            outcome = AuditEvent.OUTCOME_SUCCESS;
+            reasonType = AuditEvent.EJB;
+
+        } finally {
+            // if outcome did not get set, then we got an exception along the way and we do not call audit.
+            if (outcome != null && Audit.isAuditRequired(Audit.EventID.SECURITY_AUTHZ_04, outcome)) {
+
+                Object req = AuditManager.getHttpServletRequest();
+                Object webRequest = AuditManager.getWebRequest();
+                String realm = AuditManager.getRealm();
+
+                HashMap<String, Object> ejbAuditHashMap = new HashMap<String, Object>();
+
+                populateAuditEJBHashMap(request, ejbAuditHashMap);
+
+                ejbAuditHashMap.put(AuditEvent.REASON_TYPE, reasonType);
+                boolean success = outcome == AuditEvent.OUTCOME_SUCCESS;
+                AuditAuthenticationResult auditAuthResult = new AuditAuthenticationResult(success ? AuditAuthResult.SUCCESS : AuditAuthResult.FAILURE, authzUserName, AuditEvent.CRED_TYPE_BASIC, null, outcome);
+                Audit.audit(Audit.EventID.SECURITY_AUTHZ_04, auditAuthResult, ejbAuditHashMap, req, webRequest, realm, subject, roles,
+                            success ? Integer.valueOf(200) : Integer.valueOf(403));
             }
         }
+
     }
 
     /**
@@ -562,7 +568,7 @@ public class EJBSecurityCollaboratorImpl implements EJBSecurityCollaborator<Secu
     }
 
     private void performDelegationAudit(Subject initialSubject, String roleName, Subject delegationSubject, boolean success, AuthenticationService authService) {
-        final Object httpRequest = auditManager == null ? null : auditManager.getHttpServletRequest();
+        final Object httpRequest = AuditManager.getHttpServletRequest();
 
         String outcome = success ? AuditConstants.SUCCESS : AuditConstants.FAILURE;
 

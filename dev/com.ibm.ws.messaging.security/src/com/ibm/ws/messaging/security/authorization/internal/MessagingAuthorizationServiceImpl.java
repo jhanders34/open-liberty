@@ -21,6 +21,7 @@ import javax.security.auth.Subject;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
+import com.ibm.websphere.security.audit.AuditConstants;
 import com.ibm.websphere.security.audit.context.AuditManager;
 import com.ibm.ws.messaging.security.MSTraceConstants;
 import com.ibm.ws.messaging.security.MessagingSecurityConstants;
@@ -56,8 +57,6 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
 
     private MessagingSecurityServiceImpl messagingSecurityService = null;
 
-    private final AuditManager auditManager = new AuditManager();
-
     /**
      * Constructor
      * 
@@ -89,18 +88,7 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
     @Override
     public boolean checkQueueAccess(Subject authenticatedSubject, String destination, String operationType, boolean logWarning) throws MessagingAuthorizationException {
         SibTr.entry(tc, CLASS_NAME + "checkQueueAccess", new Object[] { authenticatedSubject, destination, operationType });
-        String busName = null;
-        String messagingEngine = null;
-        String[] roles = null;
         
-        if (auditManager != null) {
-            if (auditManager.getJMSBusName() != null)
-                busName = auditManager.getJMSBusName();
-            if (auditManager.getJMSMessagingEngine() != null)
-                messagingEngine = auditManager.getJMSMessagingEngine();
-        }
-
-             
         if (operationType.equalsIgnoreCase(MessagingSecurityConstants.OPERATION_TYPE_BROWSE)) {
             if (checkQueueAccess(authenticatedSubject, destination, MessagingSecurityConstants.OPERATION_TYPE_RECEIVE, false)) {
                 return true;
@@ -111,56 +99,46 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
         String user = authenticatedSubject.getPrincipals().iterator().next().getName();
         
         Map<String, QueuePermission> mq = messagingSecurityService.getQueuePermissions();
-        roles = messagingSecurityService.getDestinationRoles(mq, destination, user);
+        String[] roles = messagingSecurityService.getDestinationRoles(mq, destination, user);
         SibTr.debug(tc, "checkQueueAccess, roles: " + Arrays.toString(roles));
 
+        MessagingSecurityException causeByException = null;
         try {
             userName = MessagingSecurityUtility.getUniqueUserName(authenticatedSubject);
         } catch (MessagingSecurityException e) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destination, operationType, roles, "queue",
-                            Integer.valueOf("201"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destination, operationType, roles, "queue",
-                            Integer.valueOf("201"));
-            }
-
-            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destination), e);
+        	causeByException = e;
         }
-        Map<String, QueuePermission> queuePermissions = messagingSecurityService.getQueuePermissions();
-        QueuePermission permission = queuePermissions.get(destination);
-        boolean result = checkPermission(permission, operationType, userName);
-        if (!result) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
 
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
+        boolean result = false;
+        if (causeByException == null) {
+            Map<String, QueuePermission> queuePermissions = messagingSecurityService.getQueuePermissions();
+            QueuePermission permission = queuePermissions.get(destination);
+            result = checkPermission(permission, operationType, userName);
+        }
+
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_JMS_AUTHZ_01, result ? AuditConstants.SUCCESS : AuditConstants.FAILURE)) {
+            String busName = AuditManager.getJMSBusName();
+            String messagingEngine = AuditManager.getJMSMessagingEngine();;
+        	ConversationMetaData cmd = (ConversationMetaData) AuditManager.getJMSConversationMetaData();
+            if (cmd != null) {
+                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), Integer.toString(cmd.getRemotePort()),
                             cmd.getChainName(), busName, messagingEngine, destination, operationType, roles, "queue",
-                            Integer.valueOf("201"));
+                            Integer.valueOf(result ? 200 : 201));
             } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destination, operationType, roles, "queue", Integer.valueOf("201"));
-            }  
+                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destination, operationType, roles, "queue", Integer.valueOf(result ? 200 : 201));
+            }
+        }
+        if (causeByException != null) {
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destination), causeByException);
+        }
+        if (!result) {
             if (logWarning) {
                 SibTr.debug(tc, "USER_NOT_AUTHORIZED_MSE1010",
                             new Object[] { userName, operationType, destination });
-                throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destination));               
             }
-        } else {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destination, operationType, roles, "queue",
-                            Integer.valueOf("200"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destination, operationType, roles, "queue", Integer.valueOf("200"));
-            }
-
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destination));               
         }
-
+        
         SibTr.exit(tc, CLASS_NAME + "checkQueueAccess", result);
         return result;
     }
@@ -206,77 +184,55 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
     @Override
     public boolean checkTemporaryDestinationAccess(Subject authenticatedSubject, String destinationName, String operationType) throws MessagingAuthorizationException {
         SibTr.entry(tc, CLASS_NAME + "checkTemporaryDestinationAccess", new Object[] { authenticatedSubject, destinationName, operationType });
-
-        String busName = null;
-        String messagingEngine = null;
-        String[] roles = null;
-        
-        if (auditManager != null) {
-            if (auditManager.getJMSBusName() != null)
-                busName = auditManager.getJMSBusName();
-            if (auditManager.getJMSMessagingEngine() != null)
-                messagingEngine = auditManager.getJMSMessagingEngine();
-        }
         
         checkIfUserIsAuthenticated(authenticatedSubject);
         String userName = null;
         String user = authenticatedSubject.getPrincipals().iterator().next().getName();
         
         Map<String, TemporaryDestinationPermission> mq = messagingSecurityService.getTemporaryDestinationPermissions();
-        roles = messagingSecurityService.getDestinationRoles(mq, destinationName, user);
+        String[] roles = messagingSecurityService.getDestinationRoles(mq, destinationName, user);
         SibTr.debug(tc, "checkTemporaryDestinationAccess, roles: " + Arrays.toString(roles));
 
-        boolean result = false;
+        MessagingSecurityException causeByException = null;
         try {
             userName = MessagingSecurityUtility.getUniqueUserName(authenticatedSubject);
         } catch (MessagingSecurityException e) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "temporaryDestination",
-                            Integer.valueOf("201"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "temporaryDestination", Integer.valueOf("201"));
+        	causeByException = e;
+        }
+        boolean result = false;
+        if (causeByException == null) {
+            Map<String, TemporaryDestinationPermission> tempDestinationPermissions = messagingSecurityService.getTemporaryDestinationPermissions();
+            List<String> prefixList = getPrefixMatchingTemporaryDestination(tempDestinationPermissions.keySet(), destinationName);
+            for (String prefix : prefixList) {
+                TemporaryDestinationPermission permission = tempDestinationPermissions.get(prefix);
+                result = checkPermission(permission, operationType, userName);
+                if (result)
+                    break;
             }
-
-            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName), e);
         }
-        Map<String, TemporaryDestinationPermission> tempDestinationPermissions = messagingSecurityService.getTemporaryDestinationPermissions();
-        List<String> prefixList = getPrefixMatchingTemporaryDestination(tempDestinationPermissions.keySet(), destinationName);
-        for (String prefix : prefixList) {
-            TemporaryDestinationPermission permission = tempDestinationPermissions.get(prefix);
-            result = checkPermission(permission, operationType, userName);
-            if (result)
-                break;
-        }
-        if (!result) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
 
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_JMS_AUTHZ_01, result ? AuditConstants.SUCCESS : AuditConstants.FAILURE)) {
+            String busName = AuditManager.getJMSBusName();
+            String messagingEngine = AuditManager.getJMSMessagingEngine();
+            ConversationMetaData cmd = (ConversationMetaData) AuditManager.getJMSConversationMetaData();
+            if (cmd != null) {
+                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), Integer.toString(cmd.getRemotePort()),
                             cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "temporaryDestination", 
-                            Integer.valueOf("201"));
+                            Integer.valueOf(result ? 200 : 201));
             } else {
                 Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "temporaryDestination", Integer.valueOf("201"));
+                            roles, "temporaryDestination", Integer.valueOf(result ? 200 : 201));
             }
+        }
 
+        if (causeByException != null) {
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName), causeByException);
+        }
+
+        if (!result) {
             SibTr.debug(tc, "USER_NOT_AUTHORIZED_MSE1010",
                         new Object[] { userName, operationType, destinationName });
             throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName));
-        } else {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "temporaryDestination", 
-                            Integer.valueOf("200"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "temporaryDestination", Integer.valueOf("200"));
-            }
         }
 
         SibTr.exit(tc, CLASS_NAME + "checkTemporaryDestinationAccess", result);
@@ -305,24 +261,8 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
      */
     @Override
     public boolean checkTopicAccess(Subject authenticatedSubject, String topicSpace, String topicName, String operationType) throws MessagingAuthorizationException {
-        String busName = null;
-        String messagingEngine = null;
-        String[] roles = null;
-        String resource = null;
-        
-        if (auditManager != null) {
-            if (auditManager.getJMSBusName() != null)
-                busName = auditManager.getJMSBusName();
-            if (auditManager.getJMSMessagingEngine() != null)
-                messagingEngine = auditManager.getJMSMessagingEngine();
-        }
-
-        String destinationName = topicSpace;
-        resource = "topicSpace";
-        if (topicName != null) {
-            destinationName = topicSpace + MessagingSecurityConstants.TOPIC_DELIMITER + topicName;
-            resource = "topic";
-        }
+        String destinationName = topicName == null ? topicSpace :
+            topicSpace + MessagingSecurityConstants.TOPIC_DELIMITER + topicName;
         
         SibTr.entry(tc, CLASS_NAME + "checkTopicAccess", new Object[] { authenticatedSubject, destinationName, operationType });
         checkIfUserIsAuthenticated(authenticatedSubject);
@@ -330,54 +270,46 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
         String user = authenticatedSubject.getPrincipals().iterator().next().getName();
         
         Map<String, TopicPermission> mq = messagingSecurityService.getTopicPermissions();
-        roles = messagingSecurityService.getDestinationRoles(mq, destinationName, user);
+        String[] roles = messagingSecurityService.getDestinationRoles(mq, destinationName, user);
         SibTr.debug(tc, "checkTopicAccess, roles: " + Arrays.toString(roles));
-        
+
+        MessagingSecurityException causeByException = null;
         try {
             userName = MessagingSecurityUtility.getUniqueUserName(authenticatedSubject);
         } catch (MessagingSecurityException e) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, resource,
-                            Integer.valueOf("201"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, resource, Integer.valueOf("201"));
-            }
-
-            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName), e);
+        	causeByException = e;
         }
-        Map<String, TopicPermission> topicPermissions = messagingSecurityService.getTopicPermissions();
-        TopicPermission permission = getTopicPermission(topicPermissions, destinationName);
-        boolean result = checkPermission(permission, operationType, userName);
-        if (!result) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
 
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
+        boolean result = false;
+        if (causeByException == null) {
+            Map<String, TopicPermission> topicPermissions = messagingSecurityService.getTopicPermissions();
+            TopicPermission permission = getTopicPermission(topicPermissions, destinationName);
+            result = checkPermission(permission, operationType, userName);
+        }
+
+        if (Audit.isAuditRequired(Audit.EventID.SECURITY_JMS_AUTHZ_01, result ? AuditConstants.SUCCESS : AuditConstants.FAILURE)) {
+            String busName = AuditManager.getJMSBusName();
+            String messagingEngine = AuditManager.getJMSMessagingEngine();
+            String resource = topicName != null ? "topic" : "topicSpace";
+            ConversationMetaData cmd = (ConversationMetaData) AuditManager.getJMSConversationMetaData();
+            if (cmd != null) {
+                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), Integer.toString(cmd.getRemotePort()),
                             cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, resource,
-                            Integer.valueOf("201"));
+                            Integer.valueOf(result ? 200 : 201));
             } else {
                 Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, resource, Integer.valueOf("201"));
+                            roles, resource, Integer.valueOf(result ? 200 : 201));
             }
+        }
+        
+        if (causeByException != null) {
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName), causeByException);
+        }
 
+        if (!result) {
             SibTr.debug(tc, "USER_NOT_AUTHORIZED_MSE1010",
                         new Object[] { userName, operationType, destinationName });
             throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, destinationName));
-        } else {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, resource,
-                            Integer.valueOf("200"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, resource, Integer.valueOf("200"));
-            }
         }
 
         SibTr.exit(tc, CLASS_NAME + "checkTopicAccess", result);
@@ -412,85 +344,64 @@ public class MessagingAuthorizationServiceImpl implements MessagingAuthorization
                                     boolean logWarning) throws MessagingAuthorizationException {
         SibTr.entry(tc, CLASS_NAME + "checkAliasAccess", new Object[] { authenticatedSubject, aliasDestination, operationType });
 
-        String busName = null;
-        String messagingEngine = null;
-        String[] roles = null;
-        
-        if (auditManager != null) {
-            if (auditManager.getJMSBusName() != null)
-                busName = auditManager.getJMSBusName();
-            if (auditManager.getJMSMessagingEngine() != null)
-                messagingEngine = auditManager.getJMSMessagingEngine();
-        }
-
-        roles = new String[] {MessagingSecurityConstants.OPERATION_TYPE_RECEIVE};
         if (operationType.equalsIgnoreCase(MessagingSecurityConstants.OPERATION_TYPE_BROWSE)) {
             if (checkAliasAccess(authenticatedSubject, destination, aliasDestination, destinationType, MessagingSecurityConstants.OPERATION_TYPE_RECEIVE, false)) {
                 return true;
             }
         }
-        String destinationName = destination + ":" + aliasDestination;
-
         checkIfUserIsAuthenticated(authenticatedSubject);
         String userName = null;
-        String user = authenticatedSubject.getPrincipals().iterator().next().getName();
+        MessagingSecurityException causeByException = null;
         try {
             userName = MessagingSecurityUtility.getUniqueUserName(authenticatedSubject);
         } catch (MessagingSecurityException e) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
+            causeByException = e;
+        }
+        boolean result = false;
+        if (causeByException == null) {
+            Permission permission = null;
+            if (destinationType == MessagingSecurityConstants.DESTINATION_TYPE_QUEUE) {
+                Map<String, QueuePermission> destinationPermission = messagingSecurityService.getQueuePermissions();
+                permission = destinationPermission.get(destination);
+            } else if (destinationType == MessagingSecurityConstants.DESTINATION_TYPE_TOPICSPACE) {
+                Map<String, TopicPermission> destinationPermission = messagingSecurityService.getTopicPermissions();
+                permission = destinationPermission.get(destination);
+            }
+            result = checkPermission(permission, operationType, userName);
+        }
 
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
+    	if (Audit.isAuditRequired(Audit.EventID.SECURITY_JMS_AUTHZ_01, result ? AuditConstants.SUCCESS : AuditConstants.FAILURE)) {
+            String busName = AuditManager.getJMSBusName();
+            String messagingEngine = AuditManager.getJMSMessagingEngine();
+            String[] roles = new String[] {MessagingSecurityConstants.OPERATION_TYPE_RECEIVE};
+            String destinationName = destination + ":" + aliasDestination;
+            String user = authenticatedSubject.getPrincipals().iterator().next().getName();
+
+            ConversationMetaData cmd = (ConversationMetaData) AuditManager.getJMSConversationMetaData();
+            if (cmd != null) {
+                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), Integer.toString(cmd.getRemotePort()),
                             cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "aliasDestination",
-                            Integer.valueOf("201"));
+                            Integer.valueOf(result ? 200 : 201));
             } else {
                 Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "aliasDestination", Integer.valueOf("201"));
+                            roles, "aliasDestination", Integer.valueOf(result ? 200 : 201));
             }
+    	}
 
-            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, aliasDestination), e);
+        if (causeByException != null) {
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, aliasDestination), causeByException);
         }
-        Permission permission = null;
-        if (destinationType == MessagingSecurityConstants.DESTINATION_TYPE_QUEUE) {
-            Map<String, QueuePermission> destinationPermission = messagingSecurityService.getQueuePermissions();
-            permission = destinationPermission.get(destination);
-        } else if (destinationType == MessagingSecurityConstants.DESTINATION_TYPE_TOPICSPACE) {
-            Map<String, TopicPermission> destinationPermission = messagingSecurityService.getTopicPermissions();
-            permission = destinationPermission.get(destination);
-        }
-        boolean result = checkPermission(permission, operationType, userName);
+
         if (!result) {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "aliasDestination",
-                            Integer.valueOf("201"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "aliasDestination", Integer.valueOf("201"));
-            }
             if (logWarning) {
                 SibTr.debug(tc, "USER_NOT_AUTHORIZED_MSE1010",
                             new Object[] { userName, operationType, aliasDestination });
-                throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, aliasDestination));               
             }
-
-        } else {
-            if (auditManager != null && auditManager.getJMSConversationMetaData() != null) {
-                ConversationMetaData cmd = (ConversationMetaData) auditManager.getJMSConversationMetaData();
-
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, cmd.getRemoteAddress().getHostAddress(), new Integer(cmd.getRemotePort()).toString(),
-                            cmd.getChainName(), busName, messagingEngine, destinationName, operationType, roles, "aliasDestination",
-                            Integer.valueOf("200"));
-            } else {
-                Audit.audit(Audit.EventID.SECURITY_JMS_AUTHZ_01, user, null, null, null, busName, messagingEngine, destinationName, operationType, 
-                            roles, "aliasDestination", Integer.valueOf("200"));
-            }
-
- 
+            throw new MessagingAuthorizationException(Tr.formatMessage(tc, "USER_NOT_AUTHORIZED_MSE1010", userName, operationType, aliasDestination));               
         }
+
         SibTr.exit(tc, CLASS_NAME + "checkAliasAccess", result);
+
         return result;
     }
 }
