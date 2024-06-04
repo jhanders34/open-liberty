@@ -356,11 +356,20 @@ public final class ThreadPoolController {
     private static final int deepQueuePoolIncrementMultiple;
 
     /**
+     * Pool size on startup, until "ready to run" - after the server reports that it has
+     * started, the pool size will be set to coreThreads and will auto-adjust as usual
+     */
+    private static final int startupPoolSize;
+
+    /**
      * Read in applicable system properties, use defaults if the property is not present
      * These system properties will not be documented, and are intended for diagnostic and/or
      * triage use by support.
      */
     static {
+        String tpcStartupPoolSize = getSystemProperty("tpcStartupPoolSize");
+        startupPoolSize = (tpcStartupPoolSize == null) ? 6 : Integer.parseInt(tpcStartupPoolSize);
+
         String tpcResetDistroStdDevEwmaRatio = getSystemProperty("tpcResetDistroStdDevEwmaRatio");
         resetDistroStdDevEwmaRatio = (tpcResetDistroStdDevEwmaRatio == null) ? 0.10 : Double.parseDouble(tpcResetDistroStdDevEwmaRatio);
 
@@ -673,11 +682,11 @@ public final class ThreadPoolController {
         this.currentMinimumPoolSize = this.coreThreads;
         this.maxThreads = pool.getMaximumPoolSize();
         this.threadRange = this.maxThreads - this.coreThreads;
-        setPoolSize(coreThreads);
+        setPoolSize(Math.min(startupPoolSize, this.maxThreads));
         targetPoolSize = coreThreads;
         resetStatistics(true);
-        // nothing to do if core == max
-        if (coreThreads < maxThreads) {
+        // no need to run the controller cycle if there will be no pool size changes
+        if ((startupPoolSize != coreThreads) || (coreThreads != maxThreads)) {
             activeTask = new IntervalTask(this);
             timer.schedule(activeTask, interval, interval);
         }
@@ -1320,6 +1329,12 @@ public final class ThreadPoolController {
     }
 
     /**
+     * Receive notification when server start completes
+     */
+    protected static boolean serverStarting = true;
+    protected static boolean serverStarted = false;
+
+    /**
      * Evaluate the throughput for the current interval and apply heuristics
      * to modify the thread pool size in an attempt to maximize throughput.
      */
@@ -1328,6 +1343,22 @@ public final class ThreadPoolController {
         // (We could log this in FFDC, but it isn't clear that it's worth doing so.)
         if (threadPool == null)
             return "threadPool == null";
+
+        if (serverStarting) {
+            return "server startup in progress";
+        } else {
+            if (!serverStarted) {
+                setPoolSize(coreThreads);
+                serverStarted = true;
+                // if the pool size is fixed, we should stop the periodic controller operations
+                if (coreThreads == maxThreads) {
+                    if (activeTask != null) {
+                        activeTask.cancel();
+                        activeTask = null;
+                    }
+                }
+            }
+        }
 
         int poolSize = threadPool.getPoolSize();
 
