@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2011, 2023 IBM Corporation and others.
+ * Copyright (c) 2011, 2024 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License 2.0
  * which accompanies this distribution, and is available at
@@ -34,6 +34,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.impl.client.DefaultHttpClient;
 
+import componenttest.rules.repeater.JakartaEEAction;
 import componenttest.topology.impl.LibertyServer;
 
 /**
@@ -61,6 +62,7 @@ public abstract class ServletClientImpl implements ServletClient {
     protected String ssoCookieName = DEFAULT_LTPA_COOKIE_NAME;
     protected String ssoCookie;
     protected DefaultHttpClient client;
+    private boolean isJaccScenario = false;
 
     protected ServletClientImpl(String host, int port, boolean isSSL, String contextRoot) {
         if (host == null || port == 0) {
@@ -331,6 +333,11 @@ public abstract class ServletClientImpl implements ServletClient {
             failWithMessage("Caught unexpected exception: " + e);
         }
         return false;
+    }
+
+    @Override
+    public void setJaccValidation(boolean isJaccScenario) {
+        this.isJaccScenario = isJaccScenario;
     }
 
     /**
@@ -676,6 +683,60 @@ public abstract class ServletClientImpl implements ServletClient {
         assertTrue("The response did not contain the expected isUserInRole(" + specifiedRole + ")",
                    response.contains("isUserInRole(" + specifiedRole + "): " + isUserInSpecifiedRole));
 
+        if (isJaccScenario) {
+            verifyPolicyContextHandlers(response);
+        }
         return true;
     }
+
+    private static final String commonPolicyContextHandler = "javax.security.auth.Subject.container";
+    private static final String[] soapMessagePolicyContextHandlers = new String[] { "javax.xml.soap.SOAPMessage", "jakarta.xml.soap.SOAPMessage" };
+    private static final String[] httpServletRequestPolicyContextHandlers = new String[] { "javax.servlet.http.HttpServletRequest", "jakarta.servlet.http.HttpServletRequest" };
+    private static final String[] ejbPolicyContextHandlers = new String[] { "javax.ejb.EnterpriseBean", "jakarta.ejb.EnterpriseBean" };
+    private static final String[] ejbArgumentsPolicyContextHandlers = new String[] { "javax.ejb.arguments", "jakarta.ejb.arguments" };
+    private static final String[][] allContextHandlers = { soapMessagePolicyContextHandlers, httpServletRequestPolicyContextHandlers, ejbPolicyContextHandlers,
+                                                           ejbArgumentsPolicyContextHandlers };
+
+    private void verifyPolicyContextHandlers(String response) {
+        mustContain(response, "handlerKey(" + commonPolicyContextHandler + ")=true");
+        int i = 0;
+        if (JakartaEEAction.isEE11OrLaterActive()) {
+            mustContain(response, "handlerKey(jakarta.security.jacc.PrincipalMapper)=true");
+        } else {
+            mustNotContain(response, "handlerKey(jakarta.security.jacc.PrincipalMapper)=true");
+        }
+        if (JakartaEEAction.isEE9OrLaterActive()) {
+            // Only the jakarta HttpServletRequest handler should be enabled
+            for (String[] handlers : allContextHandlers) {
+                mustNotContain(response, "handlerKey(" + handlers[0] + ")=true");
+                if (i == 1) {
+                    mustContain(response, "handlerKey(" + handlers[1] + ")=true");
+                } else {
+                    mustNotContain(response, "handlerKey(" + handlers[1] + ")=true");
+                }
+                i++;
+            }
+        } else {
+            // Presently both the javax and jakarta based HttpServletRequest handlers are enabled with pre-Jakarta features
+            for (String[] handlers : allContextHandlers) {
+                if (i == 1) {
+                    mustContain(response, "handlerKey(" + handlers[0] + ")=true");
+                    mustContain(response, "handlerKey(" + handlers[1] + ")=true");
+                } else {
+                    mustNotContain(response, "handlerKey(" + handlers[0] + ")=true");
+                    mustNotContain(response, "handlerKey(" + handlers[1] + ")=true");
+                }
+                i++;
+            }
+        }
+    }
+
+    private void mustContain(String response, String target) {
+        assertTrue(target + " not found in response", response.contains(target));
+    }
+
+    private void mustNotContain(String response, String target) {
+        assertTrue(target + " found in response", !response.contains(target));
+    }
+
 }

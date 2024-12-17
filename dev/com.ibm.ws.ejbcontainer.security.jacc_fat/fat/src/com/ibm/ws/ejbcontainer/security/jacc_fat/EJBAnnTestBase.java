@@ -177,6 +177,7 @@ public class EJBAnnTestBase {
         mustContain(response, getCallerPrincipal);
         mustContain(response, isCallerInRoleManager);
         mustContain(response, isCallerInRoleEmployee);
+        verifyPolicyContextHandlers(response);
     }
 
     protected void verifyResponse(String response, String getCallerPrincipal, String getCallerIdentity, String isCallerInRoleManager, String isCallerInRoleEmployee) {
@@ -192,11 +193,50 @@ public class EJBAnnTestBase {
             mustContain(response, getCallerIdentity);
             mustContain(response, isCallerInRoleManager);
             mustContain(response, isCallerInRoleEmployee);
+            verifyPolicyContextHandlers(response);
+        }
+    }
+
+    private static final String commonPolicyContextHandler = "javax.security.auth.Subject.container";
+    private static final String[] soapMessagePolicyContextHandlers = new String[] { "javax.xml.soap.SOAPMessage", "jakarta.xml.soap.SOAPMessage" };
+    private static final String[] httpServletRequestPolicyContextHandlers = new String[] { "javax.servlet.http.HttpServletRequest", "jakarta.servlet.http.HttpServletRequest" };
+    private static final String[] ejbPolicyContextHandlers = new String[] { "javax.ejb.EnterpriseBean", "jakarta.ejb.EnterpriseBean" };
+    private static final String[] ejbArgumentsPolicyContextHandlers = new String[] { "javax.ejb.arguments", "jakarta.ejb.arguments" };
+    private static final String[][] allContextHandlers = { soapMessagePolicyContextHandlers, httpServletRequestPolicyContextHandlers, ejbPolicyContextHandlers,
+                                                           ejbArgumentsPolicyContextHandlers };
+
+    private void verifyPolicyContextHandlers(String response) {
+        mustContain(response, "handlerKey(" + commonPolicyContextHandler + ")=true");
+        if (JakartaEEAction.isEE11OrLaterActive()) {
+            mustContain(response, "handlerKey(jakarta.security.jacc.PrincipalMapper)=true");
+        } else {
+            mustNotContain(response, "handlerKey(jakarta.security.jacc.PrincipalMapper)=true");
+        }
+        if (JakartaEEAction.isEE9OrLaterActive()) {
+            int i = 0;
+            for (String[] handlers : allContextHandlers) {
+                if (i < 3 || JakartaEEAction.isEE11OrLaterActive()) {
+                    mustNotContain(response, "handlerKey(" + handlers[0] + ")=true");
+                } else {
+                    mustContain(response, "handlerKey(" + handlers[0] + ")=true");
+                }
+                mustContain(response, "handlerKey(" + handlers[1] + ")=true");
+                i++;
+            }
+        } else {
+            for (String[] handlers : allContextHandlers) {
+                mustContain(response, "handlerKey(" + handlers[0] + ")=true");
+                mustContain(response, "handlerKey(" + handlers[1] + ")=true");
+            }
         }
     }
 
     private void mustContain(String response, String target) {
         assertTrue(target + " not found in response", response.contains(target));
+    }
+
+    private void mustNotContain(String response, String target) {
+        assertTrue(target + " found in response", !response.contains(target));
     }
 
     protected void verifyResponse(String response, String getCallerPrincipal, String getCallerIdentity, String isCallerInRoleManager, String isCallerInRoleEmployee,
