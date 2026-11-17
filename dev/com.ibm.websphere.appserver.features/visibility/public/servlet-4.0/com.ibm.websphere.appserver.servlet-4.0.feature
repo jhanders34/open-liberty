@@ -54,35 +54,11 @@ IBM-SPI-Package: com.ibm.wsspi.webcontainer, \
  com.ibm.wsspi.anno.util, \
  com.ibm.ws.anno.classsource.specification
 Subsystem-Category: JavaEE8Application
--features=io.openliberty.servlet.api-4.0, \
-  com.ibm.websphere.appserver.javaeeddSchema-1.0, \
-  com.ibm.websphere.appserver.javaeePlatform-8.0, \
-  com.ibm.websphere.appserver.eeCompatible-8.0, \
-  com.ibm.websphere.appserver.servlet-servletSpi1.0, \
-  com.ibm.websphere.appserver.httptransport-1.0, \
-  com.ibm.websphere.appserver.requestProbes-1.0, \
-  com.ibm.websphere.appserver.javax.annotation-1.3, \
-  com.ibm.websphere.appserver.injection-1.0
--bundles=com.ibm.ws.app.manager.war, \
- com.ibm.ws.managedobject, \
- com.ibm.ws.org.apache.commons.io, \
- com.ibm.websphere.security, \
- com.ibm.ws.org.apache.commons.fileupload, \
- com.ibm.ws.webcontainer.servlet.4.0, \
- com.ibm.ws.webcontainer.servlet.4.0.factories, \
- com.ibm.ws.webcontainer.servlet.3.1, \
- com.ibm.ws.session, \
- com.ibm.ws.webcontainer, \
- com.ibm.ws.webcontainer.cors, \
- com.ibm.ws.http.plugin.merge, \
- com.ibm.ws.webserver.plugin.runtime, \
- com.ibm.ws.webserver.plugin.runtime.interfaces
--jars=com.ibm.ws.webserver.plugin.utility, \
- com.ibm.websphere.appserver.api.servlet; location:=dev/api/ibm/
--files=bin/tools/ws-webserverPluginutil.jar, \
- bin/pluginUtility; ibm.executable:=true; ibm.file.encoding:=ebcdic, \
- bin/pluginUtility.bat, \
- dev/api/ibm/javadoc/com.ibm.websphere.appserver.api.servlet_1.1-javadoc.zip
+-features=com.ibm.websphere.appserver.eeCompatible-8.0, \
+  io.openliberty.servletCore.internal-4.0, \
+  com.ibm.websphere.appserver.servlet-servletSpi1.0
+-jars=com.ibm.websphere.appserver.api.servlet; location:=dev/api/ibm/
+-files=dev/api/ibm/javadoc/com.ibm.websphere.appserver.api.servlet_1.1-javadoc.zip
 Subsystem-Name: Java Servlets 4.0
 kind=ga
 edition=core
