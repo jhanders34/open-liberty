@@ -1174,10 +1174,56 @@ public class VisibilityTest {
 
         // Now update the tolerates dependencies to have the right list of cumulative features.
         // As features are updated, we may need to re-evaluate the tolerate dependencies so we do this until we stop making updates.
+        // This also gathers all of the external packages that a feature gets from the public and protected (non private) features it depends on,
+        // directly or through other features. If a public feature already gets a package from one of its non private dependencies, it does not
+        // need to declare the package itself.
+        Map<String, Set<ExternalPackageInfo>> nonPrivateDependencyPackages = new HashMap<>();
         while (true) {
             boolean updatesMade = false;
             for (Entry<Set<FeatureInfo>, Set<FeatureInfo>> entry : ancestors.entrySet()) {
                 Set<FeatureInfo> key = entry.getKey();
+
+                /*
+                 * All of the external packages of the public and protected features in the key are available to the features that depend on the key.
+                 * That is the packages the feature declares, the ones it gets from the private features it depends on, and the ones it gets from its
+                 * own public and protected dependencies. The dependency chain of private features stops at a public or protected feature, so that
+                 * feature is responsible for exposing the packages from the private features it depends on.
+                 *
+                 * For a dependency with tolerates, a package is counted if any of the tolerated features gets it from a non private feature. This
+                 * is the lenient direction, like the tolerates handling below that only reports packages that all of the tolerated features have.
+                 */
+                Set<ExternalPackageInfo> keyNonPrivatePackages = new HashSet<>();
+                for (FeatureInfo depFeature : key) {
+                    Set<ExternalPackageInfo> depFeaturePackages = new HashSet<>();
+                    if (!"private".equals(depFeature.getVisibility())) {
+                        List<ExternalPackageInfo> depExternalPackages = type.isSPI ? depFeature.getSPIs() : depFeature.getAPIs();
+                        if (depExternalPackages != null) {
+                            depFeaturePackages.addAll(depExternalPackages);
+                        }
+                        Set<ExternalPackageInfo> privatePackages = cumulativeExtPackageInfo.get(Collections.singleton(depFeature));
+                        if (privatePackages != null) {
+                            depFeaturePackages.addAll(privatePackages);
+                        }
+                    }
+                    Set<ExternalPackageInfo> inheritedPackages = nonPrivateDependencyPackages.get(depFeature.getName());
+                    if (inheritedPackages != null) {
+                        depFeaturePackages.addAll(inheritedPackages);
+                    }
+                    keyNonPrivatePackages.addAll(depFeaturePackages);
+                }
+                if (keyNonPrivatePackages.size() > 0) {
+                    for (FeatureInfo dependent : entry.getValue()) {
+                        Set<ExternalPackageInfo> dependencyPackages = nonPrivateDependencyPackages.get(dependent.getName());
+                        if (dependencyPackages == null) {
+                            dependencyPackages = new HashSet<>();
+                            nonPrivateDependencyPackages.put(dependent.getName(), dependencyPackages);
+                        }
+                        if (dependencyPackages.addAll(keyNonPrivatePackages)) {
+                            updatesMade = true;
+                        }
+                    }
+                }
+
                 if (key.size() == 1) {
                     continue;
                 }
@@ -1289,7 +1335,7 @@ public class VisibilityTest {
 
             if (featureExternalPackages != null && featureExternalPackages.size() > 0) {
                 Set<FeatureInfo> featureAncestors = entry.getValue();
-                findMissingPackages(ancestors, missingExternalPackages, type, featureExternalPackages, featureAncestors, privateFeatureName);
+                findMissingPackages(ancestors, nonPrivateDependencyPackages, missingExternalPackages, type, featureExternalPackages, featureAncestors, privateFeatureName);
             }
         }
 
@@ -1351,14 +1397,20 @@ public class VisibilityTest {
         }
     }
 
-    private void findMissingPackages(Map<Set<FeatureInfo>, Set<FeatureInfo>> ancestors, Map<String, Set<MissingExternalPackageInfo>> missingExternalPackages,
+    private void findMissingPackages(Map<Set<FeatureInfo>, Set<FeatureInfo>> ancestors, Map<String, Set<ExternalPackageInfo>> nonPrivateDependencyPackages,
+                                     Map<String, Set<MissingExternalPackageInfo>> missingExternalPackages,
                                      ExternalPackageType type, Set<ExternalPackageInfo> featureExternalPackages,
                                      Set<FeatureInfo> featureAncestors, String privateFeatureName) {
         Set<FeatureInfo> publicAncestors = getPublicFeatureAncestors(featureAncestors, ancestors);
         for (FeatureInfo publicAncestor : publicAncestors) {
             Set<MissingExternalPackageInfo> missingExtPackages = new LinkedHashSet<>();
             List<ExternalPackageInfo> ancestorExternalPackages = type.isSPI ? publicAncestor.getSPIs() : publicAncestor.getAPIs();
+            Set<ExternalPackageInfo> ancestorDependencyPackages = nonPrivateDependencyPackages.get(publicAncestor.getName());
             for (ExternalPackageInfo featureExternalPackage : featureExternalPackages) {
+                if (ancestorDependencyPackages != null && ancestorDependencyPackages.contains(featureExternalPackage)) {
+                    // The public feature already gets this package from a public or protected feature that it depends on.
+                    continue;
+                }
                 if (ancestorExternalPackages == null || !ancestorExternalPackages.contains(featureExternalPackage)) {
                     MissingExternalPackageInfo missingPackage = new MissingExternalPackageInfo(privateFeatureName, featureExternalPackage.getPackageName());
                     missingExtPackages.add(missingPackage);
