@@ -7,10 +7,8 @@ visibility = private
 
 Subsystem-Name: OSGi Application
 
--bundles= \
- com.ibm.ws.eba.wab.integrator
-
 -features=io.openliberty.servlet.internal-3.0; ibm.tolerates:="3.1,4.0,5.0,6.0,6.1,6.2", \
+  io.openliberty.webBundleCore.internal-1.0, \
   io.openliberty.webBundle.internal.ee-6.0; ibm.tolerates:="9.0,10.0"
 
 edition=core

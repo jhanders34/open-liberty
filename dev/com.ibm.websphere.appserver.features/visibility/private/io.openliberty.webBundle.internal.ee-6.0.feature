@@ -7,8 +7,6 @@ visibility = private
 
 -features=io.openliberty.servlet.internal-3.0; ibm.tolerates:="3.1, 4.0"
 
--bundles= com.ibm.ws.app.manager.wab; start-phase:=APPLICATION_EARLY
-
 -jars= \
  com.ibm.websphere.appserver.spi.wab.configure; location:=dev/spi/ibm/
 

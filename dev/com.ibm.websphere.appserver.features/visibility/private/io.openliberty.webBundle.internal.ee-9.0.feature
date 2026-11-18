@@ -6,8 +6,6 @@ visibility = private
 
 -features= io.openliberty.servlet.internal-5.0
 
--bundles= com.ibm.ws.app.manager.wab.jakarta; start-phase:=APPLICATION_EARLY
-
 -jars= \
  com.ibm.websphere.appserver.spi.wab.configure; location:=dev/spi/ibm/
 

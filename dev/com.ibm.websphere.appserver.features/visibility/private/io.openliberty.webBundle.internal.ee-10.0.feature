@@ -6,8 +6,6 @@ visibility = private
 
 -features= io.openliberty.servlet.internal-6.0; ibm.tolerates:="6.1, 6.2"
 
--bundles= com.ibm.ws.app.manager.wab.jakarta; start-phase:=APPLICATION_EARLY
-
 kind=ga
 edition=core
 WLP-Activation-Type: parallel
