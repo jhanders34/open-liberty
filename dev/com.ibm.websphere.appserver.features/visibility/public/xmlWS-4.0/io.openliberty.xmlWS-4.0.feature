@@ -7,8 +7,6 @@ IBM-App-ForceRestart: uninstall, \
 IBM-ShortName: xmlWS-4.0
 Subsystem-Name: Jakarta XML Web Services 4.0
 IBM-API-Package: \
- org.apache.cxf.binding.soap.wsdl.extensions;type="internal", \
- org.apache.cxf.databinding;type="internal", \
  jakarta.jws; type="spec", \
  jakarta.jws.soap; type="spec", \
  jakarta.xml.soap; type="spec", \
@@ -40,31 +38,8 @@ IBM-SPI-Package: \
  com.ibm.ws.anno.classsource.specification
 -features=com.ibm.websphere.appserver.eeCompatible-10.0; ibm.tolerates:="11.0, 12.0", \
   io.openliberty.xmlws4.0.internal.ee-10.0; ibm.tolerates:="11.0, 12.0", \
-  io.openliberty.xmlws.common-4.0
--bundles=\
- com.ibm.ws.javaee.ddmodel.ws, \
- com.ibm.ws.jaxws.2.3.common.jakarta;start-phase:=CONTAINER_LATE, \
- com.ibm.ws.jaxws.webcontainer.jakarta, \
- com.ibm.ws.jaxws.web.jakarta, \
- com.ibm.ws.jaxws.wsat, \
- com.ibm.ws.webservices.javaee.common.jakarta
-# These jars are used for the xmlWS scripts below.
--jars=\
- io.openliberty.com.sun.xml.messaging.saaj.2.0, \
- io.openliberty.jakarta.xmlBinding.3.0; location:="dev/api/spec/", \
- io.openliberty.jakarta.activation.2.0; location:="dev/api/spec/", \
- io.openliberty.jakarta.jws.3.0; location:="dev/api/spec/", \
- io.openliberty.jakarta.soap.2.0; location:="dev/api/spec/", \
- io.openliberty.jakarta.xmlWS.3.0; location:="dev/api/spec/", \
- io.openliberty.xmlWS.3.0.internal.tools
--files=\
- bin/xmlWS/wsgen; ibm.executable:=true; ibm.file.encoding:=ebcdic, \
- bin/xmlWS/wsimport; ibm.executable:=true; ibm.file.encoding:=ebcdic, \
- dev/api/ibm/schema/ibm-ws-bnd_1_0.xsd, \
- bin/xmlWS/wsimport.bat, \
- bin/xmlWS/tools/ws-wsimport.jar, \
- bin/xmlWS/wsgen.bat, \
- bin/xmlWS/tools/ws-wsgen.jar
+  io.openliberty.xmlws.internal.server-4.0, \
+  io.openliberty.xmlBinding-4.0
 kind=ga
 edition=base
 WLP-AlsoKnownAs: jaxws-4.0

@@ -7,20 +7,8 @@ IBM-App-ForceRestart: uninstall, \
 IBM-Process-Types: client, \
  server
 Subsystem-Name: Internal xmlWS 3.2 Common Feature for xmlWS-4.0, xmlWSClient-4.0 server and client features
-IBM-API-Package:\
- jakarta.jws; type="spec", \
- jakarta.jws.soap; type="spec", \
- jakarta.xml.soap; type="spec", \
- jakarta.xml.ws; type="spec", \
- jakarta.xml.ws.handler; type="spec", \
- jakarta.xml.ws.handler.soap; type="spec", \
- jakarta.xml.ws.http; type="spec", \
- jakarta.xml.ws.soap; type="spec", \
- jakarta.xml.ws.spi; type="spec", \
- jakarta.xml.ws.spi.http; type="spec", \
- jakarta.xml.ws.wsaddressing; type="spec"
 -features=io.openliberty.jakarta.xmlWS-4.0, \
-  io.openliberty.xmlBinding-4.0, \
+  io.openliberty.xmlBinding.internal-4.0, \
   com.ibm.websphere.appserver.httpcommons-1.0, \
   io.openliberty.jakarta.mail-2.1; ibm.tolerates:="2.2", \
   com.ibm.websphere.appserver.injection-2.0, \

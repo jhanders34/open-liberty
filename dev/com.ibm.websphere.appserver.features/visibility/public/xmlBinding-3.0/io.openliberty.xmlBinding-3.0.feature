@@ -16,10 +16,8 @@ IBM-ShortName: xmlBinding-3.0
 IBM-Process-Types: client, \
  server
 Subsystem-Name: Jakarta XML Binding 3.0
--features=io.openliberty.jakarta.xmlBinding-3.0, \
+-features=io.openliberty.xmlBinding.internal-3.0, \
   com.ibm.websphere.appserver.eeCompatible-9.0
--bundles=\
-  io.openliberty.xmlBinding.3.0.internal.tools
 -files=\
  bin/xmlBinding/xjc.bat, \
  bin/xmlBinding/tools/ws-schemagen.jar, \

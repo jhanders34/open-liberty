@@ -8,7 +8,8 @@ IBM-App-ForceRestart: uninstall, \
  install
 IBM-Process-Types: client
 -features=\
-  io.openliberty.xmlws.common-3.0
+  io.openliberty.xmlws.common-3.0, \
+  io.openliberty.xmlBinding-3.0
 -bundles=\
   com.ibm.ws.jaxws.2.3.clientcontainer.jakarta
 kind=ga
